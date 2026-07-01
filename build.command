@@ -47,13 +47,10 @@ python3 -m PyInstaller --onefile \
   --name "配色工具" \
   server.py
 
-echo "=== 3/6 清除扩展属性 ==="
-xattr -cr 配色工具
-
-echo "=== 4/6 签名 ==="
+echo "=== 3/6 签名 ==="
 codesign --force --deep --sign - 配色工具
 
-echo "=== 5/6 清理临时文件 ==="
+echo "=== 4/6 清理临时文件 ==="
 rm -rf build/ __pycache__ 配色工具.spec
 
 echo "=== 6/6 清理打包素材（已打进包里的） ==="
