@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配色工具</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    background: #f5f5f7;
+    padding: 30px;
+    color: #333;
+  }
+  .container { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 24px; color: #1d1d1f; }
+
+  .color-grid {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    background: #fff; border-radius: 12px; padding: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px;
+  }
+  .color-item {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .color-item label {
+    font-size: 14px; font-weight: 500; min-width: 70px;
+  }
+  .color-item input[type="color"] {
+    width: 48px; height: 48px; border: 2px solid #e0e0e0;
+    border-radius: 8px; cursor: pointer; padding: 2px; background: none;
+  }
+  .color-item input[type="color"]:hover { border-color: #007aff; }
+  .hex-label {
+    font-size: 13px; color: #666; font-family: monospace; min-width: 75px;
+  }
+
+  .toolbar {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 16px;
+  }
+  .btn {
+    padding: 8px 20px; border-radius: 8px; border: none;
+    font-size: 14px; cursor: pointer; font-weight: 500;
+  }
+  .btn-primary { background: #007aff; color: #fff; }
+  .btn-primary:hover { background: #0056b3; }
+  .btn-primary:disabled { background: #999; cursor: not-allowed; }
+  .btn-outline {
+    background: #fff; color: #333; border: 1px solid #d0d0d0;
+  }
+  .btn-outline:hover { background: #f0f0f0; }
+  .upload-group { display: flex; align-items: center; gap: 8px; }
+  .upload-group label {
+    font-size: 13px; color: #666; cursor: pointer;
+    padding: 6px 14px; border: 1px dashed #aaa; border-radius: 6px;
+  }
+  .upload-group label:hover { border-color: #007aff; color: #007aff; }
+  .upload-group input[type="file"] { display: none; }
+
+  .status {
+    font-size: 13px; color: #999; padding: 6px 0 12px;
+  }
+  .previews {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  }
+  .preview-card {
+    background: #fff; border-radius: 10px; padding: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); text-align: center;
+  }
+  .preview-card .name {
+    font-size: 13px; color: #666; margin-bottom: 8px;
+  }
+  .preview-card img {
+    max-width: 100%; border-radius: 4px;
+    border: 1px solid #eee;
+  }
+  .loading { opacity: .4; pointer-events: none; }
+  .spinner { display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #ccc; border-top-color: #007aff;
+    border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle;
+    margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 700px) { .previews { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎨 配色工具</h1>
+
+  <div class="color-grid" id="colorGrid">
+    <div class="color-item">
+      <label>文字色</label>
+      <input type="color" id="colorText" value="{{ colors.文字色 }}">
+      <span class="hex-label" id="hexText">{{ colors.文字色 }}</span>
+    </div>
+    <div class="color-item">
+      <label>tag色</label>
+      <input type="color" id="colorTag" value="{{ colors.tag色 }}">
+      <span class="hex-label" id="hexTag">{{ colors.tag色 }}</span>
+    </div>
+    <div class="color-item">
+      <label>tag底板色</label>
+      <input type="color" id="colorBg" value="{{ colors.tag底板色 }}">
+      <span class="hex-label" id="hexBg">{{ colors.tag底板色 }}</span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" id="btnExport" onclick="doExport()">📥 导出高清原图</button>
+
+    <div class="upload-group">
+      <label>⬆ left_.9.png <input type="file" accept=".png" onchange="uploadBubble('left', this)"></label>
+    </div>
+    <div class="upload-group">
+      <label>⬆ right_.9.png <input type="file" accept=".png" onchange="uploadBubble('right', this)"></label>
+    </div>
+    <div class="upload-group">
+      <label>⬆ bg_0.png <input type="file" accept=".png" onchange="uploadBubble('bg_0', this)"></label>
+    </div>
+    <div class="upload-group">
+      <label>⬆ bg_1.png <input type="file" accept=".png" onchange="uploadBubble('bg_1', this)"></label>
+    </div>
+  </div>
+
+  <div class="status" id="status">就绪</div>
+  <div class="previews" id="previews"></div>
+</div>
+
+<script>
+const colorText = document.getElementById('colorText');
+const colorTag = document.getElementById('colorTag');
+const colorBg = document.getElementById('colorBg');
+const hexText = document.getElementById('hexText');
+const hexTag = document.getElementById('hexTag');
+const hexBg = document.getElementById('hexBg');
+const previewsEl = document.getElementById('previews');
+const statusEl = document.getElementById('status');
+const grid = document.getElementById('colorGrid');
+const btnExport = document.getElementById('btnExport');
+
+let debounceTimer = null;
+let exporting = false;
+
+function updateHex() {
+  hexText.textContent = colorText.value;
+  hexTag.textContent = colorTag.value;
+  hexBg.textContent = colorBg.value;
+}
+
+function getColors() {
+  return {
+    文字色: colorText.value,
+    tag色: colorTag.value,
+    tag底板色: colorBg.value,
+  };
+}
+
+function doPreview() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    if (exporting) return;
+    grid.classList.add('loading');
+    statusEl.innerHTML = '⏳ 生成预览...';
+
+    fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getColors())
+    })
+    .then(r => r.json())
+    .then(data => {
+      grid.classList.remove('loading');
+      if (data.ok) {
+        statusEl.textContent = '✅ 预览已更新';
+        renderPreviews(data.previews);
+      } else {
+        statusEl.textContent = '❌ ' + (data.error || '生成失败');
+      }
+    })
+    .catch(() => {
+      grid.classList.remove('loading');
+      statusEl.textContent = '❌ 请求失败';
+    });
+  }, 300);
+}
+
+function renderPreviews(data) {
+  const order = ['页面1普通模式','页面2暗黑模式','商城6字展示420X174','引流位banner','left_night','right_night'];
+  let html = '';
+  for (const name of order) {
+    const url = data[name];
+    if (!url) continue;
+    html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+  }
+  previewsEl.innerHTML = html;
+}
+
+function doExport() {
+  if (exporting) return;
+  exporting = true;
+  btnExport.disabled = true;
+  colorText.disabled = colorTag.disabled = colorBg.disabled = true;
+  statusEl.innerHTML = '<span class="spinner"></span> 导出高清原图中...';
+
+  fetch('/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getColors())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '配色输出.zip';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    exporting = false;
+    btnExport.disabled = false;
+    colorText.disabled = colorTag.disabled = colorBg.disabled = false;
+    statusEl.textContent = '✅ 导出完成';
+  })
+  .catch(err => {
+    exporting = false;
+    btnExport.disabled = false;
+    colorText.disabled = colorTag.disabled = colorBg.disabled = false;
+    statusEl.textContent = '❌ ' + err.message;
+  });
+}
+
+function uploadBubble(side, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('side', side);
+  form.append('file', file);
+  statusEl.textContent = `⏳ 上传 ${side}_.9.png...`;
+  fetch('/upload_bubble', { method: 'POST', body: form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        statusEl.textContent = `✅ ${data.file} 已更新，刷新预览...`;
+        doPreview();
+      } else {
+        statusEl.textContent = '❌ ' + (data.error || '上传失败');
+      }
+    });
+  input.value = '';
+}
+
+colorText.addEventListener('input', () => { updateHex(); doPreview(); });
+colorTag.addEventListener('input', () => { updateHex(); doPreview(); });
+colorBg.addEventListener('input', () => { updateHex(); doPreview(); });
+
+document.addEventListener('DOMContentLoaded', doPreview);
+</script>
+</body>
+</html>
