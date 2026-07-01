@@ -1,0 +1,26 @@
+name: 打包 Mac 版
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装依赖
+        run: pip3 install --break-system-packages pillow numpy flask pyinstaller
+
+      - name: 打包
+        run: |
+          chmod +x build.command
+          ./build.command
+
+      - name: 上传成品
+        uses: actions/upload-artifact@v4
+        with:
+          name: 配色工具-Mac
+          path: 配色工具
