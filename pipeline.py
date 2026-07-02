@@ -346,6 +346,15 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
     wz_replaced = color_replace(wz_0, text_color)
     lj_replaced = color_replace(lj_0, tag_color)
     sk_replaced = color_replace(sk_0, tag_bg_color)
+    # 商城6字展示（独立素材，染文字色，预览用，不导出）
+    shop_src_path = os.path.join(workdir, '商城6字展示420X174.png')
+    user_shop = os.path.join(USER_DATA_DIR, '商城6字展示420X174.png')
+    if os.path.exists(user_shop):
+        shop_src_path = user_shop
+    shop_text_img = None
+    if os.path.exists(shop_src_path):
+        shop_src = Image.open(shop_src_path).convert('RGBA')
+        shop_text_img = color_replace(shop_src, text_color)
 
     # Phase C: 亮色模式
     np_left = parse_nine_patch(left_9)
@@ -426,6 +435,7 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
         "right_night": right_night_borderless,
         "商城6字展示420X174": shop,
         "引流位banner": banner_img,
+        "商城6字展示(预览)": shop_text_img,
         "_np_left": np_left,
         "_np_right": np_right,
         "_left_9": left_9,
@@ -526,7 +536,7 @@ def preview(text_color, tag_color, tag_bg_color,
                           text_color_dark, tag_color_dark, tag_bg_color_dark)
     import base64, io
     result = {}
-    for key in ["页面1普通模式", "页面2暗黑模式", "商城6字展示420X174", "引流位banner", "left_night", "right_night"]:
+    for key in ["页面1普通模式", "页面2暗黑模式", "商城6字展示420X174", "引流位banner", "left_night", "right_night", "商城6字展示(预览)"]:
         img = imgs[key]
         if img is None:
             continue

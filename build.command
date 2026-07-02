@@ -41,6 +41,7 @@ python3 -m PyInstaller --onefile \
   --add-data "left_.9.png:." \
   --add-data "right_.9.png:." \
   --add-data "wz_3.png:." \
+  --add-data "商城6字展示420X174.png:." \
   --add-data "代码文档.docx:." \
   --add-data "pipeline.py:." \
   --hidden-import numpy \
@@ -55,7 +56,7 @@ rm -rf build/ __pycache__ 配色工具.spec
 
 echo "=== 6/6 清理打包素材（已打进包里的） ==="
 rm -rf templates/ static/
-rm -f bg_0.png bg_1.png wz_0.png lj_0.png sk_0.png left_.9.png right_.9.png wz_3.png
+rm -f bg_0.png bg_1.png wz_0.png lj_0.png sk_0.png left_.9.png right_.9.png wz_3.png 商城6字展示420X174.png
 rm -f pipeline.py server.py 代码文档.docx
 
 echo ""
