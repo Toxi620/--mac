@@ -32,7 +32,9 @@ def get_colors() -> dict:
             "tag底板色": h(pipeline.DEFAULT_TAG_BG_COLOR),
             "文字色_暗": h(pipeline.TEXT_COLOR_DARK),
             "tag色_暗": h(pipeline.TAG_COLOR_DARK),
-            "tag底板色_暗": h(pipeline.TAG_BG_COLOR_DARK)}
+            "tag底板色_暗": h(pipeline.TAG_BG_COLOR_DARK),
+            "渐变上": h(pipeline.DEFAULT_GRADIENT_TOP),
+            "渐变下": h(pipeline.DEFAULT_GRADIENT_BOTTOM)}
 
 
 @app.route("/")
@@ -50,8 +52,10 @@ def generate_preview():
     tc_d = hex_to_rgb(data.get("文字色_暗", "#7ea6d2"))
     tag_d = hex_to_rgb(data.get("tag色_暗", "#afb0bf"))
     bg_d = hex_to_rgb(data.get("tag底板色_暗", "#546c94"))
+    gt = hex_to_rgb(data.get("渐变上", "#e5f1ff"))
+    gb = hex_to_rgb(data.get("渐变下", "#ffffff"))
     try:
-        previews = pipeline.preview(tc, tag, bg, tc_d, tag_d, bg_d)
+        previews = pipeline.preview(tc, tag, bg, tc_d, tag_d, bg_d, gt, gb)
         return jsonify({"ok": True, "previews": previews})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -67,10 +71,12 @@ def export_full():
     tc_d = hex_to_rgb(data.get("文字色_暗", "#7ea6d2"))
     tag_d = hex_to_rgb(data.get("tag色_暗", "#afb0bf"))
     bg_d = hex_to_rgb(data.get("tag底板色_暗", "#546c94"))
+    gt = hex_to_rgb(data.get("渐变上", "#e5f1ff"))
+    gb = hex_to_rgb(data.get("渐变下", "#ffffff"))
     try:
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            pipeline.main(tc, tag, bg, tc_d, tag_d, bg_d)
+            pipeline.main(tc, tag, bg, tc_d, tag_d, bg_d, gt, gb)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -86,7 +92,7 @@ def export_full():
                 zf.write(fp, arcname)
     zip_buf.seek(0)
     return send_file(zip_buf, mimetype="application/zip",
-                     as_attachment=True, download_name="配色输出.zip")
+                     as_attachment=True, download_name="12聊天气泡.zip")
 
 
 @app.route("/upload_bubble", methods=["POST"])

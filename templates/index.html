@@ -12,27 +12,34 @@
     padding: 30px;
     color: #333;
   }
-  .container { max-width: 1000px; margin: 0 auto; }
+  .container { max-width: 1200px; margin: 0 auto; }
   h1 { font-size: 22px; margin-bottom: 24px; color: #1d1d1f; }
 
   .color-grid {
-    display: flex; gap: 20px; flex-wrap: wrap;
-    background: #fff; border-radius: 12px; padding: 24px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    background: #fff; border-radius: 12px; padding: 16px;
     box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px;
   }
+  .color-item input[type="color"] { width: 36px; height: 36px; }
   .color-item {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 6px;
   }
-  .color-item label {
-    font-size: 14px; font-weight: 500; min-width: 70px;
+  .color-item .color-label {
+    display: flex; flex-direction: column; line-height: 1.2;
+  }
+  .color-item .color-label .name {
+    font-size: 12px; font-weight: 500; color: #333;
+  }
+  .color-item .color-label .hex {
+    font-size: 10px; color: #999; font-family: monospace;
   }
   .color-item input[type="color"] {
-    width: 48px; height: 48px; border: 2px solid #e0e0e0;
+    width: 36px; height: 36px; border: 2px solid #e0e0e0;
     border-radius: 8px; cursor: pointer; padding: 2px; background: none;
   }
   .color-item input[type="color"]:hover { border-color: #007aff; }
   .hex-label {
-    font-size: 13px; color: #666; font-family: monospace; min-width: 75px;
+    font-size: 10px; color: #666; font-family: monospace;
   }
 
   .toolbar {
@@ -62,8 +69,10 @@
     font-size: 13px; color: #999; padding: 6px 0 12px;
   }
   .previews {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
   }
+  .previews .span2 { grid-row: span 2; }
+  @media (max-width: 900px) { .previews { grid-template-columns: repeat(2, 1fr); } }
   .preview-card {
     background: #fff; border-radius: 10px; padding: 12px;
     box-shadow: 0 1px 4px rgba(0,0,0,.08); text-align: center;
@@ -89,40 +98,65 @@
 <div class="container">
   <h1>🎨 配色工具</h1>
 
-  <div class="color-grid" id="colorGrid" style="margin-bottom:8px">
-    <div style="width:100%;font-size:14px;font-weight:600;color:#1d1d1f;margin-bottom:4px">☀️ 亮色模式</div>
+  <div class="color-grid" id="colorGrid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:8px">☀️ 亮色</span>
     <div class="color-item">
-      <label>文字色</label>
+      <div class="color-label">
+        <span class="name">文字色</span>
+        <span class="hex" id="hexText">{{ colors.文字色 }}</span>
+      </div>
       <input type="color" id="colorText" value="{{ colors.文字色 }}">
-      <span class="hex-label" id="hexText">{{ colors.文字色 }}</span>
     </div>
     <div class="color-item">
-      <label>tag色</label>
+      <div class="color-label">
+        <span class="name">tag色</span>
+        <span class="hex" id="hexTag">{{ colors.tag色 }}</span>
+      </div>
       <input type="color" id="colorTag" value="{{ colors.tag色 }}">
-      <span class="hex-label" id="hexTag">{{ colors.tag色 }}</span>
     </div>
     <div class="color-item">
-      <label>tag底板色</label>
+      <div class="color-label">
+        <span class="name">tag底板</span>
+        <span class="hex" id="hexBg">{{ colors.tag底板色 }}</span>
+      </div>
       <input type="color" id="colorBg" value="{{ colors.tag底板色 }}">
-      <span class="hex-label" id="hexBg">{{ colors.tag底板色 }}</span>
     </div>
-  </div>
-  <div class="color-grid">
-    <div style="width:100%;font-size:14px;font-weight:600;color:#1d1d1f;margin-bottom:4px">🌙 暗黑模式</div>
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin:0 8px">🌙 暗色</span>
     <div class="color-item">
-      <label>文字色</label>
+      <div class="color-label">
+        <span class="name">文字色</span>
+        <span class="hex" id="hexTextDark">{{ colors.文字色_暗 }}</span>
+      </div>
       <input type="color" id="colorTextDark" value="{{ colors.文字色_暗 }}">
-      <span class="hex-label" id="hexTextDark">{{ colors.文字色_暗 }}</span>
     </div>
     <div class="color-item">
-      <label>tag色</label>
+      <div class="color-label">
+        <span class="name">tag色</span>
+        <span class="hex" id="hexTagDark">{{ colors.tag色_暗 }}</span>
+      </div>
       <input type="color" id="colorTagDark" value="{{ colors.tag色_暗 }}">
-      <span class="hex-label" id="hexTagDark">{{ colors.tag色_暗 }}</span>
     </div>
     <div class="color-item">
-      <label>tag底板色</label>
+      <div class="color-label">
+        <span class="name">tag底板</span>
+        <span class="hex" id="hexBgDark">{{ colors.tag底板色_暗 }}</span>
+      </div>
       <input type="color" id="colorBgDark" value="{{ colors.tag底板色_暗 }}">
-      <span class="hex-label" id="hexBgDark">{{ colors.tag底板色_暗 }}</span>
+    </div>
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin:0 8px">🌈 渐变</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">上</span>
+        <span class="hex" id="hexGradTop">{{ colors.渐变上 }}</span>
+      </div>
+      <input type="color" id="colorGradTop" value="{{ colors.渐变上 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">下</span>
+        <span class="hex" id="hexGradBot">{{ colors.渐变下 }}</span>
+      </div>
+      <input type="color" id="colorGradBot" value="{{ colors.渐变下 }}">
     </div>
   </div>
 
@@ -160,6 +194,10 @@ const colorBgDark = document.getElementById('colorBgDark');
 const hexTextDark = document.getElementById('hexTextDark');
 const hexTagDark = document.getElementById('hexTagDark');
 const hexBgDark = document.getElementById('hexBgDark');
+const colorGradTop = document.getElementById('colorGradTop');
+const colorGradBot = document.getElementById('colorGradBot');
+const hexGradTop = document.getElementById('hexGradTop');
+const hexGradBot = document.getElementById('hexGradBot');
 const previewsEl = document.getElementById('previews');
 const statusEl = document.getElementById('status');
 const grid = document.getElementById('colorGrid');
@@ -187,6 +225,8 @@ function updateHex() {
   hexTextDark.textContent = colorTextDark.value;
   hexTagDark.textContent = colorTagDark.value;
   hexBgDark.textContent = colorBgDark.value;
+  hexGradTop.textContent = colorGradTop.value;
+  hexGradBot.textContent = colorGradBot.value;
 }
 
 function getColors() {
@@ -197,6 +237,8 @@ function getColors() {
     文字色_暗: colorTextDark.value,
     tag色_暗: colorTagDark.value,
     tag底板色_暗: colorBgDark.value,
+    渐变上: colorGradTop.value,
+    渐变下: colorGradBot.value,
   };
 }
 
@@ -230,12 +272,13 @@ function doPreview() {
 }
 
 function renderPreviews(data) {
-  const order = ['页面1普通模式','页面2暗黑模式','商城6字展示420X174(预览)','引流位banner','left_night','right_night'];
+  const order = ['页面1普通模式','页面2暗黑模式','商城6字展示420X174(预览)','left_night','引流位banner','right_night'];
   let html = '';
-  for (const name of order) {
-    const url = data[name];
+  for (let i = 0; i < order.length; i++) {
+    const url = data[order[i]];
     if (!url) continue;
-    html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+    const cls = 'preview-card' + (i < 2 ? ' span2' : '');
+    html += `<div class="${cls}"><div class="name">${order[i]}</div><img src="${url}"></div>`;
   }
   previewsEl.innerHTML = html;
 }
@@ -246,6 +289,7 @@ function doExport() {
   btnExport.disabled = true;
   colorText.disabled = colorTag.disabled = colorBg.disabled = true;
   colorTextDark.disabled = colorTagDark.disabled = colorBgDark.disabled = true;
+  colorGradTop.disabled = colorGradBot.disabled = true;
   statusEl.innerHTML = '<span class="spinner"></span> 导出高清原图中...';
 
   fetch('/export', {
@@ -260,13 +304,14 @@ function doExport() {
   .then(blob => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = '配色输出.zip';
+    a.href = url; a.download = '12聊天气泡.zip';
     document.body.appendChild(a); a.click();
     a.remove(); URL.revokeObjectURL(url);
     exporting = false;
     btnExport.disabled = false;
     colorText.disabled = colorTag.disabled = colorBg.disabled = false;
     colorTextDark.disabled = colorTagDark.disabled = colorBgDark.disabled = false;
+    colorGradTop.disabled = colorGradBot.disabled = false;
     statusEl.textContent = '✅ 导出完成';
   })
   .catch(err => {
@@ -274,6 +319,7 @@ function doExport() {
     btnExport.disabled = false;
     colorText.disabled = colorTag.disabled = colorBg.disabled = false;
     colorTextDark.disabled = colorTagDark.disabled = colorBgDark.disabled = false;
+    colorGradTop.disabled = colorGradBot.disabled = false;
     statusEl.textContent = '❌ ' + err.message;
   });
 }
@@ -323,6 +369,8 @@ colorBgDark.addEventListener('input', () => {
   darkAuto.bg = false;
   updateHex(); doPreview();
 });
+colorGradTop.addEventListener('input', () => { updateHex(); doPreview(); });
+colorGradBot.addEventListener('input', () => { updateHex(); doPreview(); });
 
 document.addEventListener('DOMContentLoaded', () => {
   // 初始同步：暗色 = 浅色 ×0.9

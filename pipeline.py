@@ -40,6 +40,10 @@ DIR_COVER = os.path.join(OUTPUT_DIR, "封面")   # 商城+横幅
 DIR_IOS = os.path.join(OUTPUT_DIR, "ios")      # 无边框气泡
 DIR_ANDROID = os.path.join(OUTPUT_DIR, "安卓")  # 点九原图复制
 
+# 引流位横幅渐变背景色（上→下）
+DEFAULT_GRADIENT_TOP = (229, 241, 255)      # #e5f1ff 浅蓝
+DEFAULT_GRADIENT_BOTTOM = (255, 255, 255)   # #ffffff 白
+
 # 暗黑模式色值（来自代码文档.docx，已含10%黑化效果）
 TEXT_COLOR_DARK = (126, 166, 210)    # #7ea6d2
 TAG_COLOR_DARK = (175, 176, 191)     # #afb0bf
@@ -325,7 +329,8 @@ def _save_colors(path, tc, tag, bg):
 
 
 def _generate_core(text_color, tag_color, tag_bg_color, workdir,
-                   text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None) -> dict:
+                   text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None,
+                   gradient_top=None, gradient_bottom=None) -> dict:
     """核心处理：加载 → 颜色替换 → 点九 → 合成，返回所有中间/最终图像的字典。"""
     def load(name):
         """优先读用户上传的素材，没有再读打包目录。"""
@@ -397,6 +402,9 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
         shop_with_text.paste(shop_text_img, (0, 0), shop_text_img)
 
     # Phase F: 引流位横幅
+    if gradient_top is None:
+        gradient_top = DEFAULT_GRADIENT_TOP
+        gradient_bottom = DEFAULT_GRADIENT_BOTTOM
     banner_img = None
     wz_3_path = os.path.join(workdir, 'wz_3.png')
     user_wz3 = os.path.join(USER_DATA_DIR, 'wz_3.png')
@@ -425,11 +433,25 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
             text_y = pad_t + (content_h - th) // 2
             bubble.paste(wz_3_text, (text_x, text_y), wz_3_text)
 
-            # 气泡居中放在 366x204 画布上
+            # 渐变背景（上→下）
+            import numpy as np
             banner_img = Image.new('RGBA', (366, 204), (0, 0, 0, 0))
+            arr = np.array(banner_img)
+            for y in range(204):
+                t = y / 203.0  # 0.0→1.0
+                r = int(gradient_top[0] * (1 - t) + gradient_bottom[0] * t)
+                g = int(gradient_top[1] * (1 - t) + gradient_bottom[1] * t)
+                b = int(gradient_top[2] * (1 - t) + gradient_bottom[2] * t)
+                arr[y, :, 0] = r
+                arr[y, :, 1] = g
+                arr[y, :, 2] = b
+                arr[y, :, 3] = 255
+            banner_img = Image.fromarray(arr)
+
+            # 气泡居中放在渐变背景上
             bx = (366 - bubble_w) // 2
             by = (204 - bubble_h) // 2
-            banner_img.paste(bubble, (bx, by))
+            banner_img.paste(bubble, (bx, by), bubble)
 
     return {
         "页面1普通模式": scene_normal,
@@ -447,7 +469,8 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
 
 
 def main(text_color=None, tag_color=None, tag_bg_color=None,
-         text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None):
+         text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None,
+         gradient_top=None, gradient_bottom=None):
     """主管线（全量高清输出）。"""
     workdir = WORK_DIR
     for d in [OUTPUT_DIR, DIR_EFFECT, DIR_COVER, DIR_IOS, DIR_ANDROID]:
@@ -463,7 +486,8 @@ def main(text_color=None, tag_color=None, tag_bg_color=None,
 
     # 核心处理
     imgs = _generate_core(text_color, tag_color, tag_bg_color, workdir,
-                          text_color_dark, tag_color_dark, tag_bg_color_dark)
+                          text_color_dark, tag_color_dark, tag_bg_color_dark,
+                          gradient_top, gradient_bottom)
 
     # 保存
     imgs["页面1普通模式"].save(os.path.join(DIR_EFFECT, '页面1普通模式.png'))
@@ -533,10 +557,12 @@ def main(text_color=None, tag_color=None, tag_bg_color=None,
 
 
 def preview(text_color, tag_color, tag_bg_color,
-            text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None) -> dict:
+            text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None,
+            gradient_top=None, gradient_bottom=None) -> dict:
     """缩略预览：生成 6 张缩略图（宽 600px），返回 {name: base64}。"""
     imgs = _generate_core(text_color, tag_color, tag_bg_color, WORK_DIR,
-                          text_color_dark, tag_color_dark, tag_bg_color_dark)
+                          text_color_dark, tag_color_dark, tag_bg_color_dark,
+                          gradient_top, gradient_bottom)
     import base64, io
     result = {}
     for key in ["页面1普通模式", "页面2暗黑模式", "商城6字展示420X174(预览)", "引流位banner", "left_night", "right_night"]:
