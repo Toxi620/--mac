@@ -346,7 +346,7 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
     wz_replaced = color_replace(wz_0, text_color)
     lj_replaced = color_replace(lj_0, tag_color)
     sk_replaced = color_replace(sk_0, tag_bg_color)
-    # 商城6字展示（独立素材，染文字色，预览用，不导出）
+    # 商城6字展示文字素材（染文字色，叠到气泡上预览用，不导出）
     shop_src_path = os.path.join(workdir, '商城6字展示420X174.png')
     user_shop = os.path.join(USER_DATA_DIR, '商城6字展示420X174.png')
     if os.path.exists(user_shop):
@@ -390,8 +390,11 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
     left_night_borderless = left_night.crop((1, 1, left_night.width - 1, left_night.height - 1))
     right_night_borderless = right_night.crop((1, 1, right_night.width - 1, right_night.height - 1))
 
-    # Phase E: 商城展示图
+    # Phase E: 商城展示图（气泡 + 文字叠加）
     shop = nine_patch_scale(left_9, 420, 174, np_left)
+    shop_with_text = shop.copy() if shop_text_img is not None else None
+    if shop_text_img is not None:
+        shop_with_text.paste(shop_text_img, (0, 0), shop_text_img)
 
     # Phase F: 引流位横幅
     banner_img = None
@@ -435,7 +438,7 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
         "right_night": right_night_borderless,
         "商城6字展示420X174": shop,
         "引流位banner": banner_img,
-        "商城6字展示(预览)": shop_text_img,
+        "商城6字展示(预览)": shop_with_text,
         "_np_left": np_left,
         "_np_right": np_right,
         "_left_9": left_9,
