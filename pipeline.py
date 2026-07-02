@@ -324,7 +324,8 @@ def _save_colors(path, tc, tag, bg):
         f.write('\n'.join(lines) + '\n')
 
 
-def _generate_core(text_color, tag_color, tag_bg_color, workdir) -> dict:
+def _generate_core(text_color, tag_color, tag_bg_color, workdir,
+                   text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None) -> dict:
     """核心处理：加载 → 颜色替换 → 点九 → 合成，返回所有中间/最终图像的字典。"""
     def load(name):
         """优先读用户上传的素材，没有再读打包目录。"""
@@ -358,10 +359,14 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir) -> dict:
     overlays_normal = [(wz_replaced, (0, 0)), (sk_replaced, (0, 0)), (lj_replaced, (0, 0))]
     scene_normal = composite_scene(bg_0, bubbles_normal, overlays_normal)
 
-    # Phase D: 暗黑模式
-    wz_1 = darken_overlay(wz_replaced, 0.1)
-    lj_1 = darken_overlay(lj_replaced, 0.1)
-    sk_1 = darken_overlay(sk_replaced, 0.1)
+    # Phase D: 暗黑模式（使用独立暗色值，未传则默认亮色叠10%黑）
+    if text_color_dark is None:
+        text_color_dark = TEXT_COLOR_DARK
+        tag_color_dark = TAG_COLOR_DARK
+        tag_bg_color_dark = TAG_BG_COLOR_DARK
+    wz_dark = color_replace(wz_0, text_color_dark)
+    lj_dark = color_replace(lj_0, tag_color_dark)
+    sk_dark = color_replace(sk_0, tag_bg_color_dark)
     left_night = darken_overlay(left_9, 0.1)
     right_night = darken_overlay(right_9, 0.1)
     bubbles_dark = [
@@ -370,7 +375,7 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir) -> dict:
         (nine_patch_scale(left_night, 981, 376, np_left), (170, 509)),
         (nine_patch_scale(left_night, 779, 182, np_left), (170, 1092)),
     ]
-    overlays_dark = [(wz_1, (0, 0)), (sk_1, (0, 0)), (lj_1, (0, 0))]
+    overlays_dark = [(wz_dark, (0, 0)), (sk_dark, (0, 0)), (lj_dark, (0, 0))]
     scene_dark = composite_scene(bg_1, bubbles_dark, overlays_dark)
 
     left_night_borderless = left_night.crop((1, 1, left_night.width - 1, left_night.height - 1))
@@ -428,7 +433,8 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir) -> dict:
     }
 
 
-def main(text_color=None, tag_color=None, tag_bg_color=None):
+def main(text_color=None, tag_color=None, tag_bg_color=None,
+         text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None):
     """主管线（全量高清输出）。"""
     workdir = WORK_DIR
     for d in [OUTPUT_DIR, DIR_EFFECT, DIR_COVER, DIR_IOS, DIR_ANDROID]:
@@ -443,7 +449,8 @@ def main(text_color=None, tag_color=None, tag_bg_color=None):
     print(f"  文字色={text_color}, tag色={tag_color}, tag底板色={tag_bg_color}")
 
     # 核心处理
-    imgs = _generate_core(text_color, tag_color, tag_bg_color, workdir)
+    imgs = _generate_core(text_color, tag_color, tag_bg_color, workdir,
+                          text_color_dark, tag_color_dark, tag_bg_color_dark)
 
     # 保存
     imgs["页面1普通模式"].save(os.path.join(DIR_EFFECT, '页面1普通模式.png'))
@@ -512,9 +519,11 @@ def main(text_color=None, tag_color=None, tag_bg_color=None):
     print("\n全部完成!")
 
 
-def preview(text_color, tag_color, tag_bg_color) -> dict:
+def preview(text_color, tag_color, tag_bg_color,
+            text_color_dark=None, tag_color_dark=None, tag_bg_color_dark=None) -> dict:
     """缩略预览：生成 6 张缩略图（宽 600px），返回 {name: base64}。"""
-    imgs = _generate_core(text_color, tag_color, tag_bg_color, WORK_DIR)
+    imgs = _generate_core(text_color, tag_color, tag_bg_color, WORK_DIR,
+                          text_color_dark, tag_color_dark, tag_bg_color_dark)
     import base64, io
     result = {}
     for key in ["页面1普通模式", "页面2暗黑模式", "商城6字展示420X174", "引流位banner", "left_night", "right_night"]:

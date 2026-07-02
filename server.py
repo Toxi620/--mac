@@ -29,7 +29,10 @@ def get_colors() -> dict:
     def h(rgb): return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
     return {"文字色": h(pipeline.DEFAULT_TEXT_COLOR),
             "tag色": h(pipeline.DEFAULT_TAG_COLOR),
-            "tag底板色": h(pipeline.DEFAULT_TAG_BG_COLOR)}
+            "tag底板色": h(pipeline.DEFAULT_TAG_BG_COLOR),
+            "文字色_暗": h(pipeline.TEXT_COLOR_DARK),
+            "tag色_暗": h(pipeline.TAG_COLOR_DARK),
+            "tag底板色_暗": h(pipeline.TAG_BG_COLOR_DARK)}
 
 
 @app.route("/")
@@ -44,8 +47,11 @@ def generate_preview():
     tc = hex_to_rgb(data["文字色"])
     tag = hex_to_rgb(data["tag色"])
     bg = hex_to_rgb(data["tag底板色"])
+    tc_d = hex_to_rgb(data.get("文字色_暗", "#7ea6d2"))
+    tag_d = hex_to_rgb(data.get("tag色_暗", "#afb0bf"))
+    bg_d = hex_to_rgb(data.get("tag底板色_暗", "#546c94"))
     try:
-        previews = pipeline.preview(tc, tag, bg)
+        previews = pipeline.preview(tc, tag, bg, tc_d, tag_d, bg_d)
         return jsonify({"ok": True, "previews": previews})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -58,10 +64,13 @@ def export_full():
     tc = hex_to_rgb(data["文字色"])
     tag = hex_to_rgb(data["tag色"])
     bg = hex_to_rgb(data["tag底板色"])
+    tc_d = hex_to_rgb(data.get("文字色_暗", "#7ea6d2"))
+    tag_d = hex_to_rgb(data.get("tag色_暗", "#afb0bf"))
+    bg_d = hex_to_rgb(data.get("tag底板色_暗", "#546c94"))
     try:
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            pipeline.main(tc, tag, bg)
+            pipeline.main(tc, tag, bg, tc_d, tag_d, bg_d)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

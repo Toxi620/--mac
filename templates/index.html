@@ -89,7 +89,8 @@
 <div class="container">
   <h1>🎨 配色工具</h1>
 
-  <div class="color-grid" id="colorGrid">
+  <div class="color-grid" id="colorGrid" style="margin-bottom:8px">
+    <div style="width:100%;font-size:14px;font-weight:600;color:#1d1d1f;margin-bottom:4px">☀️ 亮色模式</div>
     <div class="color-item">
       <label>文字色</label>
       <input type="color" id="colorText" value="{{ colors.文字色 }}">
@@ -104,6 +105,24 @@
       <label>tag底板色</label>
       <input type="color" id="colorBg" value="{{ colors.tag底板色 }}">
       <span class="hex-label" id="hexBg">{{ colors.tag底板色 }}</span>
+    </div>
+  </div>
+  <div class="color-grid">
+    <div style="width:100%;font-size:14px;font-weight:600;color:#1d1d1f;margin-bottom:4px">🌙 暗黑模式</div>
+    <div class="color-item">
+      <label>文字色</label>
+      <input type="color" id="colorTextDark" value="{{ colors.文字色_暗 }}">
+      <span class="hex-label" id="hexTextDark">{{ colors.文字色_暗 }}</span>
+    </div>
+    <div class="color-item">
+      <label>tag色</label>
+      <input type="color" id="colorTagDark" value="{{ colors.tag色_暗 }}">
+      <span class="hex-label" id="hexTagDark">{{ colors.tag色_暗 }}</span>
+    </div>
+    <div class="color-item">
+      <label>tag底板色</label>
+      <input type="color" id="colorBgDark" value="{{ colors.tag底板色_暗 }}">
+      <span class="hex-label" id="hexBgDark">{{ colors.tag底板色_暗 }}</span>
     </div>
   </div>
 
@@ -135,6 +154,12 @@ const colorBg = document.getElementById('colorBg');
 const hexText = document.getElementById('hexText');
 const hexTag = document.getElementById('hexTag');
 const hexBg = document.getElementById('hexBg');
+const colorTextDark = document.getElementById('colorTextDark');
+const colorTagDark = document.getElementById('colorTagDark');
+const colorBgDark = document.getElementById('colorBgDark');
+const hexTextDark = document.getElementById('hexTextDark');
+const hexTagDark = document.getElementById('hexTagDark');
+const hexBgDark = document.getElementById('hexBgDark');
 const previewsEl = document.getElementById('previews');
 const statusEl = document.getElementById('status');
 const grid = document.getElementById('colorGrid');
@@ -147,6 +172,9 @@ function updateHex() {
   hexText.textContent = colorText.value;
   hexTag.textContent = colorTag.value;
   hexBg.textContent = colorBg.value;
+  hexTextDark.textContent = colorTextDark.value;
+  hexTagDark.textContent = colorTagDark.value;
+  hexBgDark.textContent = colorBgDark.value;
 }
 
 function getColors() {
@@ -154,6 +182,9 @@ function getColors() {
     文字色: colorText.value,
     tag色: colorTag.value,
     tag底板色: colorBg.value,
+    文字色_暗: colorTextDark.value,
+    tag色_暗: colorTagDark.value,
+    tag底板色_暗: colorBgDark.value,
   };
 }
 
@@ -202,6 +233,7 @@ function doExport() {
   exporting = true;
   btnExport.disabled = true;
   colorText.disabled = colorTag.disabled = colorBg.disabled = true;
+  colorTextDark.disabled = colorTagDark.disabled = colorBgDark.disabled = true;
   statusEl.innerHTML = '<span class="spinner"></span> 导出高清原图中...';
 
   fetch('/export', {
@@ -222,12 +254,14 @@ function doExport() {
     exporting = false;
     btnExport.disabled = false;
     colorText.disabled = colorTag.disabled = colorBg.disabled = false;
+    colorTextDark.disabled = colorTagDark.disabled = colorBgDark.disabled = false;
     statusEl.textContent = '✅ 导出完成';
   })
   .catch(err => {
     exporting = false;
     btnExport.disabled = false;
     colorText.disabled = colorTag.disabled = colorBg.disabled = false;
+    colorTextDark.disabled = colorTagDark.disabled = colorBgDark.disabled = false;
     statusEl.textContent = '❌ ' + err.message;
   });
 }
@@ -255,6 +289,9 @@ function uploadBubble(side, input) {
 colorText.addEventListener('input', () => { updateHex(); doPreview(); });
 colorTag.addEventListener('input', () => { updateHex(); doPreview(); });
 colorBg.addEventListener('input', () => { updateHex(); doPreview(); });
+colorTextDark.addEventListener('input', () => { updateHex(); doPreview(); });
+colorTagDark.addEventListener('input', () => { updateHex(); doPreview(); });
+colorBgDark.addEventListener('input', () => { updateHex(); doPreview(); });
 
 document.addEventListener('DOMContentLoaded', doPreview);
 </script>
