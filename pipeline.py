@@ -437,8 +437,8 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
         "left_night": left_night_borderless,
         "right_night": right_night_borderless,
         "商城6字展示420X174": shop,
+        "商城6字展示420X174(预览)": shop_with_text if shop_with_text else shop,
         "引流位banner": banner_img,
-        "商城6字展示(预览)": shop_with_text,
         "_np_left": np_left,
         "_np_right": np_right,
         "_left_9": left_9,
@@ -539,7 +539,7 @@ def preview(text_color, tag_color, tag_bg_color,
                           text_color_dark, tag_color_dark, tag_bg_color_dark)
     import base64, io
     result = {}
-    for key in ["页面1普通模式", "页面2暗黑模式", "商城6字展示420X174", "引流位banner", "left_night", "right_night", "商城6字展示(预览)"]:
+    for key in ["页面1普通模式", "页面2暗黑模式", "商城6字展示420X174(预览)", "引流位banner", "left_night", "right_night"]:
         img = imgs[key]
         if img is None:
             continue
