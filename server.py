@@ -95,6 +95,12 @@ def export_full():
                      as_attachment=True, download_name="12聊天气泡.zip")
 
 
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    """关闭服务器（无终端窗口时使用）"""
+    os._exit(0)
+
+
 @app.route("/upload_bubble", methods=["POST"])
 def upload_bubble():
     """上传素材图片覆盖源文件"""

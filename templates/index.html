@@ -96,7 +96,10 @@
 </head>
 <body>
 <div class="container">
-  <h1>🎨 配色工具</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+    <h1 style="margin:0">🎨 配色工具</h1>
+    <button onclick="doShutdown()" style="background:none;border:1px solid #ddd;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;color:#999">✕ 关闭</button>
+  </div>
 
   <div class="color-grid" id="colorGrid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:8px">☀️ 亮色</span>
@@ -269,6 +272,12 @@ function doPreview() {
       statusEl.textContent = '❌ 请求失败';
     });
   }, 300);
+}
+
+function doShutdown() {
+  if (confirm('确定关闭配色工具？')) {
+    fetch('/shutdown', { method: 'POST' });
+  }
 }
 
 function renderPreviews(data) {
