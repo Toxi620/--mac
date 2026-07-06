@@ -98,7 +98,9 @@ def export_full():
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     """关闭服务器（无终端窗口时使用）"""
-    os._exit(0)
+    import threading
+    threading.Timer(0.3, lambda: os._exit(0)).start()
+    return "ok"
 
 
 @app.route("/upload_bubble", methods=["POST"])
