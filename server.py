@@ -98,8 +98,9 @@ def export_full():
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     """关闭服务器（无终端窗口时使用）"""
-    import threading
-    threading.Timer(0.3, lambda: os._exit(0)).start()
+    shutdown_func = request.environ.get('werkzeug.server.shutdown')
+    if shutdown_func:
+        shutdown_func()
     return "ok"
 
 
