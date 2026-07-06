@@ -98,10 +98,12 @@ def export_full():
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     """关闭服务器（无终端窗口时使用）"""
-    shutdown_func = request.environ.get('werkzeug.server.shutdown')
-    if shutdown_func:
-        shutdown_func()
-    return "ok"
+    import threading, time
+    # 先返回响应
+    response = jsonify({"ok": True})
+    # 再关服务器
+    threading.Timer(0.5, lambda: os._exit(0)).start()
+    return response
 
 
 @app.route("/upload_bubble", methods=["POST"])
