@@ -33,7 +33,7 @@ python3 -m PyInstaller --onefile \
   --distpath . \
   --add-data "templates:templates" \
   --add-data "static:static" \
-  --add-data "../02/原素材:02/原素材" \
+  --add-data "原素材:原素材" \
   --add-data "bg_0.png:." \
   --add-data "bg_1.png:." \
   --add-data "wz_0.png:." \
