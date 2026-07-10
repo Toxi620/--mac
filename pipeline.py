@@ -51,7 +51,16 @@ DEFAULT_CAROUSEL_WANT_COLOR = (51, 51, 51)        # 我也想要！.png #333333
 DEFAULT_CAROUSEL_BUBBLE_BG = (160, 200, 240)      # 评论气泡底色1/2 浅蓝
 DEFAULT_CAROUSEL_EDIT_COLOR = (130, 115, 115)        # 可编辑文字 深灰
 
-CAROUSEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '02', '原素材')
+def _get_carousel_dir():
+    """自动检测商城素材目录：打包后找 exe 同目录下的 02/原素材。"""
+    base = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+    p = os.path.join(base, '..', '02', '原素材')
+    if not os.path.exists(p):
+        p = os.path.join(base, '02', '原素材')
+    return os.path.abspath(p)
+CAROUSEL_DIR = _get_carousel_dir()
 CAROUSEL_OUTPUT_DIR = os.path.join(OUTPUT_DIR, '商城预览物料')
 
 # 暗黑模式色值（来自代码文档.docx，已含10%黑化效果）
