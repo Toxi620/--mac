@@ -52,14 +52,19 @@ DEFAULT_CAROUSEL_BUBBLE_BG = (160, 200, 240)      # 评论气泡底色1/2 浅蓝
 DEFAULT_CAROUSEL_EDIT_COLOR = (130, 115, 115)        # 可编辑文字 深灰
 
 def _get_carousel_dir():
-    """自动检测商城素材目录：打包后找 exe 同目录下的 02/原素材。"""
-    base = os.path.dirname(os.path.abspath(__file__))
+    """自动检测商城素材目录：优先 _MEIPASS（打包内），其次 exe 同目录。"""
     if getattr(sys, 'frozen', False):
-        base = os.path.dirname(sys.executable)
-    p = os.path.join(base, '..', '02', '原素材')
-    if not os.path.exists(p):
-        p = os.path.join(base, '02', '原素材')
-    return os.path.abspath(p)
+        p = os.path.join(sys._MEIPASS, '02', '原素材')
+        if os.path.exists(p):
+            return p
+        p = os.path.join(os.path.dirname(sys.executable), '02', '原素材')
+        if os.path.exists(p):
+            return p
+    base = os.path.dirname(os.path.abspath(__file__))
+    for p in [os.path.join(base, '..', '02', '原素材'), os.path.join(base, '02', '原素材')]:
+        if os.path.exists(p):
+            return os.path.abspath(p)
+    return os.path.abspath(os.path.join(base, '..', '02', '原素材'))
 CAROUSEL_DIR = _get_carousel_dir()
 CAROUSEL_OUTPUT_DIR = os.path.join(OUTPUT_DIR, '商城预览物料')
 
