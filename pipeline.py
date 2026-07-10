@@ -44,6 +44,16 @@ DIR_ANDROID = os.path.join(OUTPUT_DIR, "安卓")  # 点九原图复制
 DEFAULT_GRADIENT_TOP = (229, 241, 255)      # #e5f1ff 浅蓝
 DEFAULT_GRADIENT_BOTTOM = (255, 255, 255)   # #ffffff 白
 
+# 商城轮播图颜色
+DEFAULT_CAROUSEL_TEXT_COLOR = (0, 122, 255)       # 1~5.png 蓝色
+DEFAULT_CAROUSEL_BG_COLOR = (180, 130, 210)       # 底框.png / pic1.png 浅紫
+DEFAULT_CAROUSEL_WANT_COLOR = (51, 51, 51)        # 我也想要！.png #333333
+DEFAULT_CAROUSEL_BUBBLE_BG = (160, 200, 240)      # 评论气泡底色1/2 浅蓝
+DEFAULT_CAROUSEL_EDIT_COLOR = (130, 115, 115)        # 可编辑文字 深灰
+
+CAROUSEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '02', '原素材')
+CAROUSEL_OUTPUT_DIR = os.path.join(OUTPUT_DIR, '商城预览物料')
+
 # 暗黑模式色值（来自代码文档.docx，已含10%黑化效果）
 TEXT_COLOR_DARK = (126, 166, 210)    # #7ea6d2
 TAG_COLOR_DARK = (175, 176, 191)     # #afb0bf
@@ -316,6 +326,193 @@ def composite_scene(bg: Image.Image, bubbles: list, overlays: list) -> Image.Ima
 
 
 # ─── 主管线 ───────────────────────────────────────────────────────
+
+# ─── 商城轮播图辅助 ───────────────────────────────────────────
+
+def color_replace_simple(im, target_rgb):
+    """给半透明素材叠色：保留 alpha，RGB 全部替换为目标色。"""
+    im = im.convert('RGBA')
+    try:
+        import numpy as np
+        arr = np.array(im)
+        mask = arr[:, :, 3] > 0
+        arr[mask, 0] = target_rgb[0]
+        arr[mask, 1] = target_rgb[1]
+        arr[mask, 2] = target_rgb[2]
+        return Image.fromarray(arr)
+    except ImportError:
+        im = im.copy()
+        px = im.load()
+        for y in range(im.height):
+            for x in range(im.width):
+                r, g, b, a = px[x, y]
+                if a > 0:
+                    px[x, y] = (target_rgb[0], target_rgb[1], target_rgb[2], a)
+        return im
+
+
+def paste_at(bg, overlay, x, y, w=None, h=None):
+    """粘贴 overlay 到 bg 的 (x,y)，可选缩放到 (w,h)。"""
+    if overlay is None:
+        return bg
+    img = overlay.convert('RGBA')
+    if w and h:
+        img = img.resize((w, h), Image.LANCZOS)
+    bg.paste(img, (x, y), img)
+    return bg
+
+
+def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
+                       edit_color, edit_text, src_dir, user_dir,
+                       car_tag_color=None, car_tag_bg_color=None, car_text_color=None):
+    """生成 5 张商城轮播图，返回 {(文件名): Image}。"""
+    from PIL import ImageFont, ImageDraw
+
+    def load_src(n):
+        return Image.open(os.path.join(src_dir, n)).convert('RGBA')
+
+    def load_color(n, c, sub='改颜色的'):
+        p = os.path.join(src_dir, sub, n)
+        if not os.path.exists(p):
+            p = os.path.join(src_dir, n)
+        return color_replace_simple(Image.open(p).convert('RGBA'), c)
+
+    def load_user(n):
+        # 优先用户上传，没有则用默认素材
+        p = os.path.join(user_dir, n)
+        if os.path.exists(p):
+            return Image.open(p).convert('RGBA')
+        p = os.path.join(src_dir, '塞进去替换的', n)
+        if os.path.exists(p):
+            return Image.open(p).convert('RGBA')
+        return None
+
+    def draw_edit_text(img):
+        """在所有图片相同位置绘制编辑文字"""
+        if not edit_text:
+            return
+        try:
+            font = ImageFont.truetype('/System/Library/Fonts/PingFangSC-Medium.otf', 36)
+        except:
+            try:
+                font = ImageFont.truetype('C:/Windows/Fonts/msyh.ttc', 36)
+            except:
+                font = ImageFont.load_default()
+        draw = ImageDraw.Draw(img)
+        draw.text((625, 2220), edit_text, fill=edit_color + (255,), font=font, anchor="mm")
+
+    result = {}
+
+    # 编辑文字通用
+    def make_with_text(bg_fn):
+        bg = bg_fn()
+        draw_edit_text(bg)
+        return bg
+
+    # 底框（5张图统一位置）
+    def apply_base(img):
+        return paste_at(img, load_color('底框.png', bg_color), 362, 2079)
+
+    # ---- (1) 主页皮肤.png ----
+    def img1():
+        bg = apply_base(load_src('主页皮肤.png'))
+        bg = paste_at(bg, load_color('1.png', text_color), 507, 2120)
+        return bg
+    result['主页皮肤.png'] = make_with_text(img1)
+
+    # ---- (2) 卡片背景.png ----
+    def img2():
+        bg = apply_base(load_src('卡片背景.png'))
+        bg = paste_at(bg, load_user('头像挂件.png'), 33, 310, 135, 143)
+        bg = paste_at(bg, load_src('V标.png'), 131, 408)
+        bg = paste_at(bg, load_user('方图.png'), 43, 644, 572, 573)
+        bg = paste_at(bg, load_user('star_001_mobile_new.png'), 834, 288, 282, 125)
+        bg = paste_at(bg, load_color('我也想要！.png', want_color), 191, 1761)
+        bg = paste_at(bg, load_color('pic1.png', bubble_bg_color), 169, 1744)
+        bg = paste_at(bg, load_color('2.png', text_color), 507, 2120)
+        return bg
+    result['卡片背景.png'] = make_with_text(img2)
+
+    # ---- (3) 评论气泡.png ----
+    def img3():
+        bg = apply_base(load_src('评论气泡.png'))
+        bg = paste_at(bg, load_color('评论气泡底色2.png', bubble_bg_color), 171, 570)
+        bg = paste_at(bg, load_color('评论气泡底色1.png', bubble_bg_color), 413, 1087)
+        bg = paste_at(bg, load_color('评论气泡-我也想要！.png', want_color), 446, 1115)
+        gua = load_user('gua#ff5582.png')
+        bg = paste_at(bg, gua, 505, 616, 139, 54)
+        bg = paste_at(bg, gua, 639, 1145)
+        bg = paste_at(bg, load_color('3.png', text_color), 507, 2120)
+        return bg
+    result['评论气泡.png'] = make_with_text(img3)
+
+    # ---- (4) 聊天气泡.png ----
+    def img4():
+        bt = car_text_color if car_text_color is not None else DEFAULT_TEXT_COLOR
+        tc = car_tag_color if car_tag_color is not None else DEFAULT_TAG_COLOR
+        tbc = car_tag_bg_color if car_tag_bg_color is not None else DEFAULT_TAG_BG_COLOR
+
+        # 1242x2688 透明画布（超出部分自动裁剪）
+        bg = Image.new('RGBA', (1242, 2688), (0, 0, 0, 0))
+
+        # 页面1 缩放到 1242x2691，放在 (0,28)，底部自动裁剪
+        page1_src = _generate_core(bt, tc, tbc, WORK_DIR,
+            None, None, None, None, None)["页面1普通模式"].copy()
+        page1_src = page1_src.resize((1242, 2691), Image.LANCZOS)
+        bg.paste(page1_src, (0, 28))
+
+        # 替换 lj_0 → 小助理的AI回复 (tag色), sk_0 → 链接高亮 (tag底板色)
+        scale = 1242 / 1290
+        def sp(x, y): return (int(x * scale), int(y * scale))
+        ai = color_replace_simple(
+            load_src(os.path.join('改颜色的', '小助理的AI回复.png')), tc)
+        link = color_replace_simple(
+            load_src(os.path.join('改颜色的', '链接高亮.png')), tbc)
+        bg.paste(link, sp(212, 724), link)
+        bg.paste(ai, sp(220, 734), ai)
+
+        # 聊天气泡头像/中/上
+        bg = paste_at(bg, load_src('聊天气泡头像.png'), 0, 0)
+        bg = paste_at(bg, load_src('聊天气泡中.png'), 0, 0)
+        bg = paste_at(bg, load_src('聊天气泡上.png'), 0, 890)
+
+        # 底框 (和其他4张图相同位置，不缩放)
+        bg = paste_at(bg, load_color('底框.png', bg_color), 362, 2079)
+
+        # 气泡点九图 759x207
+        left_9_path = os.path.join(src_dir, '..', '..', '打包', 'left_.9.png')
+        if not os.path.exists(left_9_path):
+            left_9_path = os.path.join(WORK_DIR, 'left_.9.png')
+        if os.path.exists(left_9_path):
+            left_9 = Image.open(left_9_path).convert('RGBA')
+            np_left = parse_nine_patch(left_9)
+            bubble = nine_patch_scale(left_9, 759, 207, np_left)
+            bg.paste(bubble, (324, 1123), bubble)
+
+        bg = paste_at(bg, load_color('会员上新了，快去抢！.png', bt), 383, 1193)
+        bg = paste_at(bg, load_color('4.png', text_color), 507, 2120)
+        return bg
+    result['聊天气泡.png'] = make_with_text(img4)
+
+    # ---- (5) 卡片背景.png → 被赞动效.jpg ----
+    def img5():
+        bg = apply_base(load_src('卡片背景.png'))
+        bg = paste_at(bg, load_user('头像挂件.png'), 33, 310, 135, 143)
+        bg = paste_at(bg, load_src('V标.png'), 131, 408)
+        bg = paste_at(bg, load_user('方图.png'), 43, 644, 572, 573)
+        bg = paste_at(bg, load_user('star_001_mobile_new.png'), 834, 288, 282, 125)
+        bg = paste_at(bg, load_color('我也想要！.png', want_color), 191, 1761)
+        bg = paste_at(bg, load_color('pic1.png', bubble_bg_color), 169, 1744)
+        bg = paste_at(bg, load_color('5.png', text_color), 507, 2120)
+        return bg
+    bg5 = img5()
+    draw_edit_text(bg5)
+    bg5_rgb = Image.new('RGB', bg5.size, (255, 255, 255))
+    bg5_rgb.paste(bg5, mask=bg5.split()[3] if bg5.mode == 'RGBA' else None)
+    result['被赞动效.jpg'] = bg5_rgb
+
+    return result
+
 
 def _save_colors(path, tc, tag, bg):
     """将颜色写回配色.txt"""

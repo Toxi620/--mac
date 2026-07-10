@@ -91,16 +91,25 @@
     margin-right: 4px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  @media (max-width: 700px) { .previews { grid-template-columns: repeat(2, 1fr); } }
+  #carouselPreviews { grid-template-columns: repeat(5, 1fr); }
+  @media (max-width: 900px) { #carouselPreviews { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .previews, #carouselPreviews { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
 <div class="container">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-    <h1 style="margin:0">🎨 配色工具</h1>
+
+  <!-- 导航栏 -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div style="display:inline-flex;width:fit-content;border:1px solid #ddd;border-radius:8px;overflow:hidden">
+      <button id="tabBubble" onclick="switchTab('bubble')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#007aff;color:#fff;font-weight:500;white-space:nowrap">🫧 气泡预览</button>
+      <button id="tabCarousel" onclick="switchTab('carousel')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🛒 商城轮播</button>
+    </div>
     <button onclick="doShutdown()" style="background:none;border:1px solid #ddd;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;color:#999">✕ 关闭</button>
   </div>
 
+  <!-- ======== 气泡预览面板 ======== -->
+  <div id="bubblePanel">
   <div class="color-grid" id="colorGrid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:8px">☀️ 亮色</span>
     <div class="color-item">
@@ -182,6 +191,64 @@
 
   <div class="status" id="status">就绪</div>
   <div class="previews" id="previews"></div>
+</div>
+
+<!-- ======== 商城轮播面板 ======== -->
+<div id="carouselPanel" style="display:none">
+  <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🎨 轮播色</span>
+    
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">底框</span>
+        <span class="hex" id="hexCarBg">{{ colors.底框颜色 }}</span>
+      </div>
+      <input type="color" id="carBg" value="{{ colors.底框颜色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">文字色</span>
+        <span class="hex" id="hexCarText">{{ colors.轮播文字色 }}</span>
+      </div>
+      <input type="color" id="carText" value="{{ colors.轮播文字色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">编辑字色</span>
+        <span class="hex" id="hexCarEdit">{{ colors.编辑字色 }}</span>
+      </div>
+      <input type="color" id="carEdit" value="{{ colors.编辑字色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">气泡底框</span>
+        <span class="hex" id="hexCarBubble">{{ colors.气泡底框颜色 }}</span>
+      </div>
+      <input type="color" id="carBubble" value="{{ colors.气泡底框颜色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">我也想要</span>
+        <span class="hex" id="hexCarWant">{{ colors.我也想要颜色 }}</span>
+      </div>
+      <input type="color" id="carWant" value="{{ colors.我也想要颜色 }}">
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="carEditText" placeholder="输入文字…" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <button class="btn btn-primary" id="btnExportCar" onclick="doExportCarousel()">📥 导出商城物料</button>
+  </div>
+
+  <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label>⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
+    <div class="upload-group"><label>⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
+    <div class="upload-group"><label>⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
+    <div class="upload-group"><label>⬆ 气泡装饰 <input type="file" accept=".png" onchange="uploadCarousel('gua#ff5582.png',this)"></label></div>
+  </div>
+
+  <div id="carouselStatus" class="status"></div>
+  <div class="previews" id="carouselPreviews"></div>
 </div>
 
 <script>
@@ -352,6 +419,151 @@ function uploadBubble(side, input) {
     });
   input.value = '';
 }
+
+// ─── 商城轮播图 ──────────────────────────────────────────
+
+const carText = document.getElementById('carText');
+const carBg = document.getElementById('carBg');
+const carWant = document.getElementById('carWant');
+const carBubble = document.getElementById('carBubble');
+const carEdit = document.getElementById('carEdit');
+const hexCarText = document.getElementById('hexCarText');
+const hexCarBg = document.getElementById('hexCarBg');
+const hexCarWant = document.getElementById('hexCarWant');
+const hexCarBubble = document.getElementById('hexCarBubble');
+const hexCarEdit = document.getElementById('hexCarEdit');
+const carEditText = document.getElementById('carEditText');
+const carouselPreviews = document.getElementById('carouselPreviews');
+const carouselStatus = document.getElementById('carouselStatus');
+const btnExportCar = document.getElementById('btnExportCar');
+
+let carDebounce = null;
+
+function switchTab(tab) {
+  const bubble = document.getElementById('bubblePanel');
+  const carousel = document.getElementById('carouselPanel');
+  const bt1 = document.getElementById('tabBubble');
+  const bt2 = document.getElementById('tabCarousel');
+  if (tab === 'bubble') {
+    bubble.style.display = 'block';
+    carousel.style.display = 'none';
+    bt1.style.background = '#007aff'; bt1.style.color = '#fff';
+    bt2.style.background = '#f5f5f7'; bt2.style.color = '#666';
+  } else {
+    bubble.style.display = 'none';
+    carousel.style.display = 'block';
+    bt1.style.background = '#f5f5f7'; bt1.style.color = '#666';
+    bt2.style.background = '#007aff'; bt2.style.color = '#fff';
+    clearTimeout(carDebounce);
+    carDebounce = null;
+    doCarouselPreviewNow();
+  }
+}
+
+function getCarouselColors() {
+  return {
+    轮播文字色: carText.value,
+    底框颜色: carBg.value,
+    我也想要颜色: carWant.value,
+    气泡底框颜色: carBubble.value,
+    编辑字色: carEdit.value,
+    编辑文字: carEditText.value,
+    tag色: colorTag.value,
+    tag底板色: colorBg.value,
+  };
+}
+
+function updateCarouselHex() {
+  hexCarText.textContent = carText.value;
+  hexCarBg.textContent = carBg.value;
+  hexCarWant.textContent = carWant.value;
+  hexCarBubble.textContent = carBubble.value;
+  hexCarEdit.textContent = carEdit.value;
+}
+
+function _fetchCarousel() {
+  carouselStatus.innerHTML = '<span class="spinner"></span> 生成中...';
+  fetch('/generate_carousel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getCarouselColors())
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      carouselStatus.textContent = '✅ 预览已更新';
+      let html = '';
+      for (const [name, url] of Object.entries(data.previews)) {
+        html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+      }
+      carouselPreviews.innerHTML = html;
+    } else {
+      carouselStatus.textContent = '❌ ' + (data.error || '生成失败');
+    }
+  })
+  .catch(() => { carouselStatus.textContent = '❌ 请求失败'; });
+}
+
+function doCarouselPreviewNow() { _fetchCarousel(); }
+
+function doCarouselPreview() {
+  clearTimeout(carDebounce);
+  carDebounce = setTimeout(_fetchCarousel, 300);
+}
+
+function doExportCarousel() {
+  btnExportCar.disabled = true;
+  carouselStatus.innerHTML = '<span class="spinner"></span> 导出中...';
+  fetch('/export_carousel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getCarouselColors())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '商城预览物料.zip';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    btnExportCar.disabled = false;
+    carouselStatus.textContent = '✅ 导出完成';
+  })
+  .catch(err => {
+    btnExportCar.disabled = false;
+    carouselStatus.textContent = '❌ ' + err.message;
+  });
+}
+
+function uploadCarousel(name, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('name', name);
+  form.append('file', file);
+  carouselStatus.textContent = `⏳ 上传 ${name}...`;
+  fetch('/upload_carousel', { method: 'POST', body: form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        carouselStatus.textContent = `✅ ${data.file} 已更新，刷新预览...`;
+        doCarouselPreview();
+      } else {
+        carouselStatus.textContent = '❌ ' + (data.error || '上传失败');
+      }
+    });
+  input.value = '';
+}
+
+carText.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carBg.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carWant.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carBubble.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carEdit.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carEditText.addEventListener('input', () => { doCarouselPreview(); });
 
 colorText.addEventListener('input', () => {
   if (darkAuto.text) colorTextDark.value = darkenHex(colorText.value);
