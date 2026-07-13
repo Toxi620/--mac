@@ -412,7 +412,7 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
             'C:/Windows/Fonts/msyh.ttc',
         ]:
             try:
-                font = ImageFont.truetype(fp, 36)
+                font = ImageFont.truetype(fp, 36 * 96 // 72)  # 48 (补偿 Mac vs Windows DPI 差异)
                 break
             except:
                 continue
