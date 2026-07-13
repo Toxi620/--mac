@@ -405,18 +405,14 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         if not edit_text:
             return
         font = None
-        size = 42  # Mac 上 36pt 偏小，加大补偿
         for fp in [
             '/System/Library/Fonts/PingFang.ttc',
-            '/System/Library/Fonts/STHeiti Medium.ttc',
-            '/System/Library/Fonts/STHeiti Light.ttc',
             '/System/Library/Fonts/PingFangSC-Medium.otf',
             '/System/Library/Fonts/PingFangSC-Regular.otf',
             'C:/Windows/Fonts/msyh.ttc',
-            'C:/Windows/Fonts/msyhbd.ttc',
         ]:
             try:
-                font = ImageFont.truetype(fp, size)
+                font = ImageFont.truetype(fp, 36)
                 break
             except:
                 continue
