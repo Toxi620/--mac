@@ -404,13 +404,21 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         """在所有图片相同位置绘制编辑文字"""
         if not edit_text:
             return
-        try:
-            font = ImageFont.truetype('/System/Library/Fonts/PingFangSC-Medium.otf', 36)
-        except:
+        font = None
+        for fp in [
+            '/System/Library/Fonts/PingFang.ttc',
+            '/System/Library/Fonts/PingFangSC-Medium.otf',
+            '/System/Library/Fonts/PingFangSC-Regular.otf',
+            'C:/Windows/Fonts/msyh.ttc',
+            'C:/Windows/Fonts/msyhbd.ttc',
+        ]:
             try:
-                font = ImageFont.truetype('C:/Windows/Fonts/msyh.ttc', 36)
+                font = ImageFont.truetype(fp, 36)
+                break
             except:
-                font = ImageFont.load_default()
+                continue
+        if font is None:
+            font = ImageFont.load_default()
         draw = ImageDraw.Draw(img)
         draw.text((625, 2220), edit_text, fill=edit_color + (255,), font=font, anchor="mm")
 
