@@ -225,8 +225,29 @@ def upload_bubble():
 
 
 if __name__ == "__main__":
-    import webbrowser, threading, os as _os
-    if not _os.environ.get('WERKZEUG_RUN_MAIN'):
-        threading.Timer(1.5, lambda: webbrowser.open("http://localhost:5001")).start()
-    print("配色工具: http://localhost:5001")
-    app.run(host="127.0.0.1", port=5001, debug=True)
+    import webbrowser, threading, os as _os, socket
+
+    is_frozen = getattr(sys, 'frozen', False)
+    # 找可用端口
+    port = 5001
+    for _ in range(10):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(("127.0.0.1", port))
+            s.close()
+            break
+        except OSError:
+            port += 1
+            continue
+    else:
+        port = 5001  # 都占用了也硬试
+
+    url = f"http://localhost:{port}"
+    if not is_frozen:
+        if not _os.environ.get('WERKZEUG_RUN_MAIN'):
+            threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    else:
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    print(f"配色工具: {url}")
+    app.run(host="127.0.0.1", port=port, debug=not is_frozen)
