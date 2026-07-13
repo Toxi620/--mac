@@ -405,14 +405,17 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         if not edit_text:
             return
         font = None
+        # 优先用打包进来的字体
+        bundled = os.path.join(WORK_DIR, 'fonts', 'PingFang.ttc')
         for fp in [
+            bundled,
             '/System/Library/Fonts/PingFang.ttc',
             '/System/Library/Fonts/PingFangSC-Medium.otf',
             '/System/Library/Fonts/PingFangSC-Regular.otf',
             'C:/Windows/Fonts/msyh.ttc',
         ]:
             try:
-                font = ImageFont.truetype(fp, 36 * 96 // 72)  # 48 (补偿 Mac vs Windows DPI 差异)
+                font = ImageFont.truetype(fp, 36 * 96 // 72)
                 break
             except:
                 continue

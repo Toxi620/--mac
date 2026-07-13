@@ -25,15 +25,20 @@ else
     echo "✅ 所有依赖已就绪"
 fi
 
-echo "=== 1/6 清理旧缓存 ==="
+echo "=== 1/6 复制系统字体 ==="
+mkdir -p fonts
+cp /System/Library/Fonts/PingFang.ttc fonts/ 2>/dev/null && echo "  ✅ PingFang.ttc copied" || echo "  ⚠️ PingFang.ttc not found"
+
+echo "=== 2/6 清理旧缓存 ==="
 rm -rf build/ 配色工具.spec
 
-echo "=== 2/6 打包 ==="
+echo "=== 3/6 打包 ==="
 python3 -m PyInstaller --onefile \
   --distpath . \
   --add-data "templates:templates" \
   --add-data "static:static" \
   --add-data "原素材:原素材" \
+  --add-data "fonts:fonts" \
   --add-data "bg_0.png:." \
   --add-data "bg_1.png:." \
   --add-data "wz_0.png:." \
@@ -56,7 +61,7 @@ echo "=== 4/6 清理临时文件 ==="
 rm -rf build/ __pycache__ 配色工具.spec
 
 echo "=== 6/6 清理打包素材（已打进包里的） ==="
-rm -rf templates/ static/
+rm -rf templates/ static/ fonts/
 rm -f bg_0.png bg_1.png wz_0.png lj_0.png sk_0.png left_.9.png right_.9.png wz_3.png 商城6字展示420X174.png
 rm -f pipeline.py server.py 代码文档.docx
 
