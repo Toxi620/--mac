@@ -408,7 +408,7 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         bundled = os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf')
         for fp in [bundled, 'C:/Windows/Fonts/msyh.ttc']:
             try:
-                font = ImageFont.truetype(fp, 48)
+                font = ImageFont.truetype(fp, 36)
                 break
             except:
                 continue
