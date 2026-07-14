@@ -237,6 +237,8 @@
 
   <div class="toolbar">
     <input type="text" id="carEditText" placeholder="输入文字…" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <input type="number" id="carFontSize" value="36" min="12" max="120" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+    <label style="font-size:13px;color:#666">字号</label>
     <button class="btn btn-primary" id="btnExportCar" onclick="doExportCarousel()">📥 导出商城物料</button>
   </div>
 
@@ -470,6 +472,7 @@ function getCarouselColors() {
     编辑文字: carEditText.value,
     tag色: colorTag.value,
     tag底板色: colorBg.value,
+    编辑字号: parseInt(carFontSize.value) || 36,
   };
 }
 
@@ -564,6 +567,7 @@ carWant.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview
 carBubble.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carEdit.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carEditText.addEventListener('input', () => { doCarouselPreview(); });
+document.getElementById('carFontSize').addEventListener('input', () => { doCarouselPreview(); });
 
 colorText.addEventListener('input', () => {
   if (darkAuto.text) colorTextDark.value = darkenHex(colorText.value);

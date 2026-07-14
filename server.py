@@ -129,7 +129,7 @@ def generate_carousel():
     try:
         # 气泡预览的文字色
         btc = hex_to_rgb(data.get("文字色", "#9f69c5"))
-        imgs = pipeline._generate_carousel(tc, wc, bc, bbc, ec, et, src, ud, tag_c, tag_bg_c, btc)
+        imgs = pipeline._generate_carousel(tc, wc, bc, bbc, ec, et, es, src, ud, tag_c, tag_bg_c, btc)
         import base64
         result = {}
         for name, img in imgs.items():
@@ -164,7 +164,7 @@ def export_carousel():
     try:
         # 气泡预览的文字色
         btc = hex_to_rgb(data.get("文字色", "#9f69c5"))
-        imgs = pipeline._generate_carousel(tc, wc, bc, bbc, ec, et, src, ud, tag_c, tag_bg_c, btc)
+        imgs = pipeline._generate_carousel(tc, wc, bc, bbc, ec, et, es, src, ud, tag_c, tag_bg_c, btc)
         out_dir = pipeline.CAROUSEL_OUTPUT_DIR
         os.makedirs(out_dir, exist_ok=True)
         for name, img in imgs.items():

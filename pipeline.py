@@ -50,6 +50,7 @@ DEFAULT_CAROUSEL_BG_COLOR = (180, 130, 210)       # 底框.png / pic1.png 浅紫
 DEFAULT_CAROUSEL_WANT_COLOR = (51, 51, 51)        # 我也想要！.png #333333
 DEFAULT_CAROUSEL_BUBBLE_BG = (160, 200, 240)      # 评论气泡底色1/2 浅蓝
 DEFAULT_CAROUSEL_EDIT_COLOR = (130, 115, 115)        # 可编辑文字 深灰
+DEFAULT_CAROUSEL_EDIT_SIZE = 36                      # 可编辑文字字号
 
 def _get_carousel_dir():
     """自动检测商城素材目录：优先打包内 _MEIPASS，其次 exe/脚本同目录。"""
@@ -376,7 +377,7 @@ def paste_at(bg, overlay, x, y, w=None, h=None):
 
 
 def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
-                       edit_color, edit_text, src_dir, user_dir,
+                       edit_color, edit_text, edit_size, src_dir, user_dir,
                        car_tag_color=None, car_tag_bg_color=None, car_text_color=None):
     """生成 5 张商城轮播图，返回 {(文件名): Image}。"""
     from PIL import ImageFont, ImageDraw
@@ -408,7 +409,7 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         bundled = os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf')
         for fp in [bundled, 'C:/Windows/Fonts/msyh.ttc']:
             try:
-                font = ImageFont.truetype(fp, 36)
+                font = ImageFont.truetype(fp, edit_size)
                 break
             except:
                 continue
