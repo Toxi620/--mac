@@ -405,13 +405,10 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         if not edit_text:
             return
         font = None
-        bundled = os.path.join(WORK_DIR, 'fonts', 'PingFang.ttc')
-        for fp, idx in [(bundled, 0), ('/System/Library/Fonts/PingFang.ttc', 0),
-                ('/System/Library/Fonts/PingFangSC-Medium.otf', 0),
-                ('/System/Library/Fonts/PingFangSC-Regular.otf', 0),
-                ('C:/Windows/Fonts/msyh.ttc', 0)]:
+        bundled = os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf')
+        for fp in [bundled, 'C:/Windows/Fonts/msyh.ttc']:
             try:
-                font = ImageFont.truetype(fp, 48, index=idx)
+                font = ImageFont.truetype(fp, 48)
                 break
             except:
                 continue
