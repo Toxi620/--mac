@@ -122,6 +122,7 @@ def generate_carousel():
     bbc = hex_to_rgb(data.get("气泡底框颜色", "#646464"))
     ec = hex_to_rgb(data.get("编辑字色", "#646464"))
     et = data.get("编辑文字", "")
+    es = int(data.get("编辑字号", 36))
     tag_c = hex_to_rgb(data.get("tag色", "#979e9c"))
     tag_bg_c = hex_to_rgb(data.get("tag底板色", "#e5fed1"))
     src = pipeline.CAROUSEL_DIR
@@ -157,6 +158,7 @@ def export_carousel():
     bbc = hex_to_rgb(data.get("气泡底框颜色", "#646464"))
     ec = hex_to_rgb(data.get("编辑字色", "#646464"))
     et = data.get("编辑文字", "")
+    es = int(data.get("编辑字号", 36))
     tag_c = hex_to_rgb(data.get("tag色", "#979e9c"))
     tag_bg_c = hex_to_rgb(data.get("tag底板色", "#e5fed1"))
     src = pipeline.CAROUSEL_DIR
