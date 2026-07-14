@@ -27,7 +27,12 @@ fi
 
 echo "=== 1/6 复制系统字体 ==="
 mkdir -p fonts
-cp /System/Library/Fonts/PingFang.ttc fonts/ 2>/dev/null && echo "  ✅ PingFang.ttc copied" || echo "  ⚠️ PingFang.ttc not found"
+FONT_SRC=$(find /System/Library/Fonts /Library/Fonts -name "PingFang*" -type f 2>/dev/null | head -1)
+if [ -z "$FONT_SRC" ]; then
+  echo "  ⚠️ PingFang not found via find"
+else
+  cp "$FONT_SRC" fonts/PingFang.ttc 2>/dev/null && echo "  ✅ Font copied from $FONT_SRC"
+fi
 
 echo "=== 2/6 清理旧缓存 ==="
 rm -rf build/ 配色工具.spec
