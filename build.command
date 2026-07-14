@@ -29,7 +29,9 @@ echo "=== 1/6 复制系统字体 ==="
 mkdir -p fonts
 FONT_SRC=$(find /System/Library/Fonts /Library/Fonts -name "PingFang*" -type f 2>/dev/null | head -1)
 if [ -z "$FONT_SRC" ]; then
-  echo "  ⚠️ PingFang not found via find"
+  echo "  ⚠️ PingFang not found, checking fonts dir..."
+  ls /System/Library/Fonts/ 2>/dev/null | head -20 || echo "  cannot access /System/Library/Fonts/"
+  ls /System/Library/Fonts/ 2>/dev/null | grep -i "ping\|hei\|song\|kai" | head -5
 else
   cp "$FONT_SRC" fonts/PingFang.ttc 2>/dev/null && echo "  ✅ Font copied from $FONT_SRC"
 fi
