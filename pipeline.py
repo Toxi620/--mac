@@ -696,6 +696,10 @@ def main(text_color=None, tag_color=None, tag_bg_color=None,
         text_color = DEFAULT_TEXT_COLOR
         tag_color = DEFAULT_TAG_COLOR
         tag_bg_color = DEFAULT_TAG_BG_COLOR
+    if text_color_dark is None:
+        text_color_dark = TEXT_COLOR_DARK
+        tag_color_dark = TAG_COLOR_DARK
+        tag_bg_color_dark = TAG_BG_COLOR_DARK
     print(f"  文字色={text_color}, tag色={tag_color}, tag底板色={tag_bg_color}")
 
     # 核心处理
@@ -745,12 +749,20 @@ def main(text_color=None, tag_color=None, tag_bg_color=None,
             xml = f.read()
         def rgb_to_hex(rgb):
             return f'#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}'
-        for old, new in {
-            '#6985c5': rgb_to_hex(text_color),
-            '#97979e': rgb_to_hex(tag_color),
-            '#d1e2fe': rgb_to_hex(tag_bg_color),
-        }.items():
-            xml = xml.replace(old, new)
+        # 亮色 + 暗色 6 个色值全部替换（暗色模板色：#7ea6d2/#afb0bf/#546c94）
+        replacements = [
+            ('#6985c5', rgb_to_hex(text_color)),
+            ('#97979e', rgb_to_hex(tag_color)),
+            ('#d1e2fe', rgb_to_hex(tag_bg_color)),
+            ('#7ea6d2', rgb_to_hex(text_color_dark)),
+            ('#afb0bf', rgb_to_hex(tag_color_dark)),
+            ('#546c94', rgb_to_hex(tag_bg_color_dark)),
+        ]
+        # 先换成占位符再回填，避免替换出的新色值恰好等于另一个待替换旧色值时被二次替换
+        for i, (old, _) in enumerate(replacements):
+            xml = xml.replace(old, f'__COLOR_PH_{i}__')
+        for i, (_, new) in enumerate(replacements):
+            xml = xml.replace(f'__COLOR_PH_{i}__', new)
         with open(xml_path, 'w', encoding='utf-8') as f:
             f.write(xml)
         with zipfile.ZipFile(docx_tmp, 'w', zipfile.ZIP_DEFLATED) as zout:

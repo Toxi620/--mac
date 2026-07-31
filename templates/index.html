@@ -20,7 +20,7 @@
     background: #fff; border-radius: 12px; padding: 16px;
     box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px;
   }
-  .color-item input[type="color"] { width: 36px; height: 36px; }
+  .color-item input[type="color"] { display: none; }
   .color-item {
     display: flex; align-items: center; gap: 6px;
   }
@@ -33,11 +33,11 @@
   .color-item .color-label .hex {
     font-size: 10px; color: #999; font-family: monospace;
   }
-  .color-item input[type="color"] {
+  .cp-swatch {
     width: 36px; height: 36px; border: 2px solid #e0e0e0;
-    border-radius: 8px; cursor: pointer; padding: 2px; background: none;
+    border-radius: 8px; cursor: pointer; padding: 0; flex-shrink: 0;
   }
-  .color-item input[type="color"]:hover { border-color: #007aff; }
+  .cp-swatch:hover { border-color: #007aff; }
   .hex-label {
     font-size: 10px; color: #666; font-family: monospace;
   }
@@ -94,6 +94,38 @@
   #carouselPreviews { grid-template-columns: repeat(5, 1fr); }
   @media (max-width: 900px) { #carouselPreviews { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 700px) { .previews, #carouselPreviews { grid-template-columns: repeat(2, 1fr); } }
+
+  /* 自定义取色面板（hex 为主，清爽版） */
+  #cpPanel {
+    position: fixed; z-index: 1000; background: #fff; border: 1px solid #e5e5e5;
+    border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    padding: 14px; display: none; width: 240px; user-select: none;
+  }
+  #cpPanel .cp-hex-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  #cpPanel .cp-preview {
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid #e0e0e0;
+    background: #000; flex-shrink: 0;
+  }
+  #cpPanel .cp-hex-input {
+    flex: 1; font-size: 16px; font-family: 'Consolas','Courier New',monospace;
+    padding: 7px 10px; border: 1px solid #ddd; border-radius: 8px; outline: none;
+    color: #333; min-width: 0;
+  }
+  #cpPanel .cp-hex-input:focus { border-color: #007aff; }
+  #cpPanel canvas { display: block; border-radius: 8px; cursor: crosshair; }
+  #cpSv { width: 212px; height: 136px; margin-bottom: 12px; }
+  #cpHue { width: 212px; height: 16px; margin-bottom: 12px; }
+  #cpPanel .cp-rgb { display: flex; gap: 8px; margin-bottom: 12px; }
+  #cpPanel .cp-rgb label {
+    flex: 1; display: flex; align-items: center; gap: 4px; min-width: 0;
+  }
+  #cpPanel .cp-rgb label span { font-size: 11px; color: #999; width: 12px; flex-shrink: 0; }
+  #cpPanel .cp-rgb input {
+    width: 100%; padding: 5px 4px; border: 1px solid #e0e0e0; border-radius: 6px;
+    font-size: 12px; text-align: center; outline: none; color: #333;
+  }
+  #cpPanel .cp-rgb input:focus { border-color: #007aff; }
+  #cpPanel .cp-actions { display: flex; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -299,6 +331,7 @@ function updateHex() {
   hexBgDark.textContent = colorBgDark.value;
   hexGradTop.textContent = colorGradTop.value;
   hexGradBot.textContent = colorGradBot.value;
+  syncSwatches();
 }
 
 function getColors() {
@@ -473,6 +506,7 @@ function getCarouselColors() {
     tag色: colorTag.value,
     tag底板色: colorBg.value,
     编辑字号: parseInt(carFontSize.value) || 36,
+    文字色: colorText.value,
   };
 }
 
@@ -482,6 +516,7 @@ function updateCarouselHex() {
   hexCarWant.textContent = carWant.value;
   hexCarBubble.textContent = carBubble.value;
   hexCarEdit.textContent = carEdit.value;
+  syncSwatches();
 }
 
 function _fetchCarousel() {
@@ -598,6 +633,7 @@ colorGradTop.addEventListener('input', () => { updateHex(); doPreview(); });
 colorGradBot.addEventListener('input', () => { updateHex(); doPreview(); });
 
 document.addEventListener('DOMContentLoaded', () => {
+  buildSwatches();
   // 初始同步：暗色 = 浅色 ×0.9
   colorTextDark.value = darkenHex(colorText.value);
   colorTagDark.value = darkenHex(colorTag.value);
@@ -605,6 +641,211 @@ document.addEventListener('DOMContentLoaded', () => {
   updateHex();
   doPreview();
 });
+
+// ─── 自定义取色器（hex 为主）────────────────────────────
+const cpPanel = document.createElement('div');
+cpPanel.id = 'cpPanel';
+cpPanel.innerHTML =
+  '<div class="cp-hex-row">' +
+    '<div class="cp-preview" id="cpPreview"></div>' +
+    '<input type="text" id="cpHex" class="cp-hex-input" spellcheck="false" maxlength="7" autocomplete="off">' +
+  '</div>' +
+  '<canvas id="cpHue" width="220" height="16"></canvas>' +
+  '<canvas id="cpSv" width="220" height="140"></canvas>' +
+  '<div class="cp-rgb">' +
+    '<label><span>R</span><input type="number" id="cpR" min="0" max="255"></label>' +
+    '<label><span>G</span><input type="number" id="cpG" min="0" max="255"></label>' +
+    '<label><span>B</span><input type="number" id="cpB" min="0" max="255"></label>' +
+  '</div>' +
+  '<div class="cp-actions"><button type="button" id="cpClose" class="btn btn-primary">完成</button></div>';
+document.body.appendChild(cpPanel);
+
+const cpPreviewEl = document.getElementById('cpPreview');
+const cpSv = document.getElementById('cpSv');
+const cpHue = document.getElementById('cpHue');
+const ctxSv = cpSv.getContext('2d');
+const ctxHue = cpHue.getContext('2d');
+const cpHexEl = document.getElementById('cpHex');
+const cpREl = document.getElementById('cpR');
+const cpGEl = document.getElementById('cpG');
+const cpBEl = document.getElementById('cpB');
+
+let cpInput = null;   // 当前绑定的 input[type=color]
+let cpHsv = { h: 210, s: 0.6, v: 1 };
+
+function hexToRgb(hex) {
+  hex = String(hex || '').replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+}
+function rgbToHex(r, g, b) {
+  const f = x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0');
+  return '#' + f(r) + f(g) + f(b);
+}
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s: max ? d / max : 0, v: max };
+}
+function hsvToRgb(h, s, v) {
+  h = (((h % 360) + 360) % 360) / 360;
+  const i = Math.floor(h * 6), f = h * 6 - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  let r, g, b;
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    default: r = v; g = p; b = q;
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function drawSv() {
+  const w = cpSv.width, h = cpSv.height;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const [r, g, b] = hsvToRgb(cpHsv.h, x / (w - 1), 1 - y / (h - 1));
+      ctxSv.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+      ctxSv.fillRect(x, y, 1, 1);
+    }
+  }
+  const mx = cpHsv.s * (w - 1), my = (1 - cpHsv.v) * (h - 1);
+  ctxSv.fillStyle = '#fff';
+  ctxSv.beginPath(); ctxSv.arc(mx, my, 5, 0, Math.PI * 2); ctxSv.fill();
+  ctxSv.strokeStyle = 'rgba(0,0,0,.55)'; ctxSv.lineWidth = 1.5;
+  ctxSv.beginPath(); ctxSv.arc(mx, my, 5, 0, Math.PI * 2); ctxSv.stroke();
+}
+function drawHue() {
+  const w = cpHue.width, h = cpHue.height;
+  for (let x = 0; x < w; x++) {
+    const [r, g, b] = hsvToRgb(x / (w - 1) * 360, 1, 1);
+    ctxHue.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+    ctxHue.fillRect(x, 0, 1, h);
+  }
+  const mx = cpHsv.h / 360 * (w - 1);
+  ctxHue.fillStyle = '#fff';
+  ctxHue.beginPath(); ctxHue.arc(mx, h / 2, 5, 0, Math.PI * 2); ctxHue.fill();
+  ctxHue.strokeStyle = 'rgba(0,0,0,.55)'; ctxHue.lineWidth = 1.5;
+  ctxHue.beginPath(); ctxHue.arc(mx, h / 2, 5, 0, Math.PI * 2); ctxHue.stroke();
+}
+
+function setPanelColor(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return;
+  cpHexEl.value = hex;
+  cpPreviewEl.style.background = hex;
+  cpREl.value = rgb[0]; cpGEl.value = rgb[1]; cpBEl.value = rgb[2];
+  cpHsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+  drawSv(); drawHue();
+  if (cpInput && cpInput.value !== hex) {
+    cpInput.value = hex;
+    cpInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+function commitFromHsv() {
+  const [r, g, b] = hsvToRgb(cpHsv.h, cpHsv.s, cpHsv.v);
+  setPanelColor(rgbToHex(r, g, b));
+}
+
+function attachDrag(canvas, onDrag) {
+  canvas.addEventListener('mousedown', e => {
+    onDrag(e);
+    const mv = ev => onDrag(ev);
+    const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+    window.addEventListener('mousemove', mv);
+    window.addEventListener('mouseup', up);
+  });
+}
+attachDrag(cpSv, e => {
+  const rect = cpSv.getBoundingClientRect();
+  let x = (e.clientX - rect.left) / rect.width;
+  let y = (e.clientY - rect.top) / rect.height;
+  x = Math.max(0, Math.min(1, x)); y = Math.max(0, Math.min(1, y));
+  cpHsv.s = x; cpHsv.v = 1 - y;
+  commitFromHsv();
+});
+attachDrag(cpHue, e => {
+  const rect = cpHue.getBoundingClientRect();
+  let x = (e.clientX - rect.left) / rect.width;
+  x = Math.max(0, Math.min(1, x));
+  cpHsv.h = x * 360;
+  commitFromHsv();
+});
+
+// hex 输入（主）
+cpHexEl.addEventListener('input', () => {
+  let v = cpHexEl.value.trim();
+  if (v && v[0] !== '#') v = '#' + v;
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) setPanelColor(v.toLowerCase());
+});
+cpHexEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const rgb = hexToRgb(cpHexEl.value);
+    if (rgb) setPanelColor(rgbToHex(rgb[0], rgb[1], rgb[2]));
+    else if (cpInput) cpHexEl.value = cpInput.value;
+  }
+});
+
+// RGB 次级
+for (const el of [cpREl, cpGEl, cpBEl]) {
+  el.addEventListener('input', () => {
+    const r = cpREl.value === '' ? 0 : parseInt(cpREl.value, 10);
+    const g = cpGEl.value === '' ? 0 : parseInt(cpGEl.value, 10);
+    const b = cpBEl.value === '' ? 0 : parseInt(cpBEl.value, 10);
+    setPanelColor(rgbToHex(r, g, b));
+  });
+}
+
+function openPicker(inputEl, anchor) {
+  cpInput = inputEl;
+  setPanelColor(inputEl.value || '#000000');
+  const rect = (anchor || inputEl).getBoundingClientRect();
+  const pw = cpPanel.offsetWidth, ph = cpPanel.offsetHeight;
+  let left = rect.left, top = rect.bottom + 6;
+  if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, rect.top - ph - 6);
+  cpPanel.style.left = left + 'px';
+  cpPanel.style.top = top + 'px';
+  cpPanel.style.display = 'block';
+  cpHexEl.focus(); cpHexEl.select();
+}
+function closePicker() { cpPanel.style.display = 'none'; cpInput = null; }
+document.getElementById('cpClose').addEventListener('click', closePicker);
+document.addEventListener('mousedown', e => {
+  if (cpPanel.style.display === 'block' && !cpPanel.contains(e.target)) closePicker();
+});
+
+// 给每个原生取色器生成色块按钮
+function buildSwatches() {
+  document.querySelectorAll('input[type="color"]').forEach(input => {
+    if (input.dataset.swatched) return;
+    input.dataset.swatched = '1';
+    const sw = document.createElement('button');
+    sw.type = 'button';
+    sw.className = 'cp-swatch';
+    sw.style.background = input.value;
+    sw.title = '点击取色';
+    sw.addEventListener('click', e => { e.stopPropagation(); openPicker(input, sw); });
+    input.parentNode.insertBefore(sw, input.nextSibling);
+  });
+}
+function syncSwatches() {
+  document.querySelectorAll('input[type="color"]').forEach(input => {
+    const sw = input.nextElementSibling;
+    if (sw && sw.classList.contains('cp-swatch')) sw.style.background = input.value;
+  });
+}
 </script>
 </body>
 </html>

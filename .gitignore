@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+配色工具/
+*.spec
+.DS_Store
