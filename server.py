@@ -19,6 +19,43 @@ app = Flask(__name__)
 
 WORK_DIR = pipeline.WORK_DIR
 
+_build_version_cache = None
+
+
+def get_build_version() -> str:
+    """构建标识：优先 version.txt（打包脚本写入 commit 号），否则 git commit，最后 dev。"""
+    global _build_version_cache
+    if _build_version_cache is not None:
+        return _build_version_cache
+
+    for p in [
+        os.path.join(WORK_DIR, 'version.txt'),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'version.txt'),
+    ]:
+        try:
+            with open(p, encoding='utf-8') as f:
+                v = f.read().strip()
+            if v:
+                _build_version_cache = v
+                return v
+        except Exception:
+            pass
+
+    # 开发环境回退：从 git 读当前 commit
+    try:
+        import subprocess
+        r = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'],
+                           capture_output=True, text=True, timeout=3,
+                           cwd=os.path.dirname(os.path.abspath(__file__)))
+        if r.returncode == 0 and r.stdout.strip():
+            _build_version_cache = r.stdout.strip() + '-dev'
+            return _build_version_cache
+    except Exception:
+        pass
+
+    _build_version_cache = 'dev'
+    return 'dev'
+
 
 def hex_to_rgb(h: str) -> tuple:
     h = h.lstrip("#")
@@ -46,7 +83,7 @@ def get_colors() -> dict:
 
 @app.route("/")
 def index():
-    return render_template("index.html", colors=get_colors())
+    return render_template("index.html", colors=get_colors(), build_version=get_build_version())
 
 
 @app.route("/generate", methods=["POST"])

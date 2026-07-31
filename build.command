@@ -29,6 +29,10 @@ echo "=== 1/6 复制系统字体 ==="
 mkdir -p fonts
 ls fonts/PingFang.ttf 2>/dev/null && echo "  ✅ fonts/PingFang.ttf exists" || echo "  ⚠️ fonts/PingFang.ttf not found"
 
+echo "=== 写入构建版本 (commit) ==="
+git rev-parse --short HEAD > version.txt 2>/dev/null || echo "dev" > version.txt
+echo "  版本: $(cat version.txt)"
+
 echo "=== 2/6 清理旧缓存 ==="
 rm -rf build/ 配色工具.spec
 
@@ -50,6 +54,7 @@ python3 -m PyInstaller --onefile \
   --add-data "商城6字展示420X174.png:." \
   --add-data "代码文档.docx:." \
   --add-data "pipeline.py:." \
+  --add-data "version.txt:." \
   --hidden-import numpy \
   --name "配色工具" \
   server.py

@@ -11,12 +11,18 @@ echo === 1/6 清理旧缓存 ===
 rmdir /s /q build 2>nul
 del 配色工具.spec 2>nul
 
+echo === 写入构建版本 (commit) ===
+git rev-parse --short HEAD > version.txt 2>nul
+if errorlevel 1 echo dev> version.txt
+for /f "delims=" %%i in (version.txt) do echo   版本: %%i
+
 echo === 2/6 打包 ===
-pyinstaller --onefile --console ^
+pyinstaller --onefile -w ^
   --distpath . ^
   --add-data "templates;templates" ^
   --add-data "static;static" ^
-  --add-data "../02/原素材;02/原素材" ^
+  --add-data "原素材;原素材" ^
+  --add-data "fonts;fonts" ^
   --add-data "bg_0.png;." ^
   --add-data "bg_1.png;." ^
   --add-data "wz_0.png;." ^
@@ -28,6 +34,7 @@ pyinstaller --onefile --console ^
   --add-data "商城6字展示420X174.png;." ^
   --add-data "代码文档.docx;." ^
   --add-data "pipeline.py;." ^
+  --add-data "version.txt;." ^
   --hidden-import numpy ^
   --name "配色工具" ^
   server.py
@@ -37,13 +44,7 @@ rmdir /s /q build 2>nul
 del 配色工具.spec 2>nul
 rmdir /s /q __pycache__ 2>nul
 
-echo === 4/6 清理打包素材 ===
-rmdir /s /q templates 2>nul
-rmdir /s /q static 2>nul
-del bg_0.png bg_1.png wz_0.png lj_0.png sk_0.png left_.9.png right_.9.png wz_3.png 2>nul
-del 商城6字展示420X174.png 2>nul
-del pipeline.py server.py 代码文档.docx 2>nul
-
 echo.
 echo ✅ 全部完成！
 echo 生成文件：配色工具.exe
+echo 源码文件已保留，可重复运行 build.bat

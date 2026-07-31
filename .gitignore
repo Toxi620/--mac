@@ -4,5 +4,7 @@ __pycache__/
 build/
 dist/
 配色工具/
+配色工具.exe
+version.txt
 *.spec
 .DS_Store

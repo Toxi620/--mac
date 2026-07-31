@@ -68,6 +68,10 @@
   .status {
     font-size: 13px; color: #999; padding: 6px 0 12px;
   }
+  .app-version {
+    text-align: center; font-size: 11px; color: #aaa; margin-top: 24px;
+    font-family: Consolas, monospace;
+  }
   .previews {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
   }
@@ -300,6 +304,8 @@
   <div id="carouselStatus" class="status"></div>
   <div class="previews" id="carouselPreviews"></div>
 </div>
+
+<div class="app-version">build: {{ build_version }}</div>
 
 <script>
 const colorText = document.getElementById('colorText');
