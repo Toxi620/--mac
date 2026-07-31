@@ -40,6 +40,7 @@ def get_colors() -> dict:
             "底框颜色": h(pipeline.DEFAULT_CAROUSEL_BG_COLOR),
             "我也想要颜色": h(pipeline.DEFAULT_CAROUSEL_WANT_COLOR),
             "气泡底框颜色": h(pipeline.DEFAULT_CAROUSEL_BUBBLE_BG),
+            "气泡底框预置色": [h(c) for c in pipeline.CAROUSEL_BUBBLE_PRESETS],
             "编辑字色": h(pipeline.DEFAULT_CAROUSEL_EDIT_COLOR)}
 
 

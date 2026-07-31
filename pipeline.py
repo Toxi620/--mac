@@ -48,7 +48,15 @@ DEFAULT_GRADIENT_BOTTOM = (255, 255, 255)   # #ffffff 白
 DEFAULT_CAROUSEL_TEXT_COLOR = (0, 122, 255)       # 1~5.png 蓝色
 DEFAULT_CAROUSEL_BG_COLOR = (180, 130, 210)       # 底框.png / pic1.png 浅紫
 DEFAULT_CAROUSEL_WANT_COLOR = (51, 51, 51)        # 我也想要！.png #333333
-DEFAULT_CAROUSEL_BUBBLE_BG = (160, 200, 240)      # 评论气泡底色1/2 浅蓝
+# 气泡底框五选一预置色
+CAROUSEL_BUBBLE_PRESETS = [
+    (255, 143, 86),    # #FF8F56 橙
+    (254, 173, 58),    # #FEAD3A 琥珀
+    (222, 200, 76),    # #DEC84C 黄
+    (165, 93, 171),    # #A55DAB 紫
+    (208, 70, 102),    # #D04666 玫红
+]
+DEFAULT_CAROUSEL_BUBBLE_BG = CAROUSEL_BUBBLE_PRESETS[0]  # 默认 #FF8F56
 DEFAULT_CAROUSEL_EDIT_COLOR = (130, 115, 115)        # 可编辑文字 深灰
 DEFAULT_CAROUSEL_EDIT_SIZE = 36                      # 可编辑文字字号
 
@@ -496,12 +504,18 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         # 底框 (和其他4张图相同位置，不缩放)
         bg = paste_at(bg, load_color('底框.png', bg_color), 362, 2079)
 
-        # 气泡点九图 759x207
-        left_9_path = os.path.join(src_dir, '..', '..', '打包', 'left_.9.png')
-        if not os.path.exists(left_9_path):
-            left_9_path = os.path.join(WORK_DIR, 'left_.9.png')
-        if os.path.exists(left_9_path):
-            left_9 = Image.open(left_9_path).convert('RGBA')
+        # 气泡点九图 759x207（优先用户上传的 left_.9.png，与气泡预览一致）
+        left_9 = None
+        user_left = os.path.join(user_dir, 'left_.9.png')
+        if os.path.exists(user_left):
+            left_9 = Image.open(user_left).convert('RGBA')
+        else:
+            left_9_path = os.path.join(src_dir, '..', '..', '打包', 'left_.9.png')
+            if not os.path.exists(left_9_path):
+                left_9_path = os.path.join(WORK_DIR, 'left_.9.png')
+            if os.path.exists(left_9_path):
+                left_9 = Image.open(left_9_path).convert('RGBA')
+        if left_9 is not None:
             np_left = parse_nine_patch(left_9)
             bubble = nine_patch_scale(left_9, 759, 207, np_left)
             bg.paste(bubble, (324, 1123), bubble)

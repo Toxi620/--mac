@@ -126,6 +126,17 @@
   }
   #cpPanel .cp-rgb input:focus { border-color: #007aff; }
   #cpPanel .cp-actions { display: flex; justify-content: flex-end; }
+
+  /* 气泡底框五选一 */
+  .bubble-presets { display: flex; gap: 6px; align-items: center; }
+  .preset-swatch {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #e0e0e0;
+    cursor: pointer; padding: 0; flex-shrink: 0; transition: transform .1s;
+  }
+  .preset-swatch:hover { transform: scale(1.1); border-color: #aaa; }
+  .preset-swatch.active {
+    border-color: #007aff; box-shadow: 0 0 0 2px #fff inset; transform: scale(1.1);
+  }
 </style>
 </head>
 <body>
@@ -256,7 +267,12 @@
         <span class="name">气泡底框</span>
         <span class="hex" id="hexCarBubble">{{ colors.气泡底框颜色 }}</span>
       </div>
-      <input type="color" id="carBubble" value="{{ colors.气泡底框颜色 }}">
+      <div class="bubble-presets" id="carBubblePresets">
+        {% for c in colors.气泡底框预置色 %}
+        <button type="button" class="preset-swatch" data-color="{{ c }}" style="background:{{ c }}" title="{{ c }}"></button>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="carBubble" value="{{ colors.气泡底框颜色 }}">
     </div>
     <div class="color-item">
       <div class="color-label">
@@ -517,6 +533,10 @@ function updateCarouselHex() {
   hexCarBubble.textContent = carBubble.value;
   hexCarEdit.textContent = carEdit.value;
   syncSwatches();
+  // 气泡底框预置高亮
+  document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
+    b.classList.toggle('active', b.dataset.color === carBubble.value);
+  });
 }
 
 function _fetchCarousel() {
@@ -601,6 +621,14 @@ carBg.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview()
 carWant.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carBubble.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carEdit.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+
+// 气泡底框五选一：点预置色圆点 → 写入隐藏 input 并派发 input 事件
+document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
+  b.addEventListener('click', () => {
+    carBubble.value = b.dataset.color;
+    carBubble.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+});
 carEditText.addEventListener('input', () => { doCarouselPreview(); });
 document.getElementById('carFontSize').addEventListener('input', () => { doCarouselPreview(); });
 
@@ -639,6 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
   colorTagDark.value = darkenHex(colorTag.value);
   colorBgDark.value = darkenHex(colorBg.value);
   updateHex();
+  updateCarouselHex();  // 同步气泡底框预置高亮
   doPreview();
 });
 
