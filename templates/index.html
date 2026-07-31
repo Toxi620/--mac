@@ -151,6 +151,7 @@
     <div style="display:inline-flex;width:fit-content;border:1px solid #ddd;border-radius:8px;overflow:hidden">
       <button id="tabBubble" onclick="switchTab('bubble')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#007aff;color:#fff;font-weight:500;white-space:nowrap">🫧 气泡预览</button>
       <button id="tabCarousel" onclick="switchTab('carousel')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🛒 商城轮播</button>
+      <button id="tabNinepatch" onclick="switchTab('ninepatch')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🧪 点九验证</button>
     </div>
     <button onclick="doShutdown()" style="background:none;border:1px solid #ddd;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;color:#999">✕ 关闭</button>
   </div>
@@ -295,6 +296,7 @@
   </div>
 
   <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label>⬆ 主页皮肤背景 <input type="file" accept=".png" onchange="uploadCarousel('主页皮肤.png',this)"></label></div>
     <div class="upload-group"><label>⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
     <div class="upload-group"><label>⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
     <div class="upload-group"><label>⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
@@ -303,6 +305,27 @@
 
   <div id="carouselStatus" class="status"></div>
   <div class="previews" id="carouselPreviews"></div>
+</div>
+
+<!-- ======== 点九验证面板 ======== -->
+<div id="ninepatchPanel" style="display:none">
+  <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🧪 点九验证</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">文字色</span>
+        <span class="hex" id="hexNpColor">#333333</span>
+      </div>
+      <input type="color" id="npColor" value="#333333">
+    </div>
+  </div>
+  <div class="toolbar">
+    <input type="text" id="npText" placeholder="输入文字…" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <input type="number" id="npFontSize" value="36" min="8" max="200" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+    <label style="font-size:13px;color:#666">字号</label>
+  </div>
+  <div class="status" id="ninepatchStatus">就绪</div>
+  <div class="previews" id="ninepatchPreviews" style="grid-template-columns: repeat(2,1fr)"></div>
 </div>
 
 <div class="app-version">build: {{ build_version }}</div>
@@ -497,23 +520,26 @@ const btnExportCar = document.getElementById('btnExportCar');
 let carDebounce = null;
 
 function switchTab(tab) {
-  const bubble = document.getElementById('bubblePanel');
-  const carousel = document.getElementById('carouselPanel');
-  const bt1 = document.getElementById('tabBubble');
-  const bt2 = document.getElementById('tabCarousel');
-  if (tab === 'bubble') {
-    bubble.style.display = 'block';
-    carousel.style.display = 'none';
-    bt1.style.background = '#007aff'; bt1.style.color = '#fff';
-    bt2.style.background = '#f5f5f7'; bt2.style.color = '#666';
-  } else {
-    bubble.style.display = 'none';
-    carousel.style.display = 'block';
-    bt1.style.background = '#f5f5f7'; bt1.style.color = '#666';
-    bt2.style.background = '#007aff'; bt2.style.color = '#fff';
+  const panels = { bubble: 'bubblePanel', carousel: 'carouselPanel', ninepatch: 'ninepatchPanel' };
+  const btns = { bubble: 'tabBubble', carousel: 'tabCarousel', ninepatch: 'tabNinepatch' };
+  for (const key of Object.keys(panels)) {
+    document.getElementById(panels[key]).style.display = (key === tab) ? 'block' : 'none';
+    const btn = document.getElementById(btns[key]);
+    if (key === tab) {
+      btn.style.background = '#007aff'; btn.style.color = '#fff';
+    } else {
+      btn.style.background = '#f5f5f7'; btn.style.color = '#666';
+    }
+  }
+  // 切换到商城轮播 / 点九验证时立即刷新预览（保持原有行为）
+  if (tab === 'carousel') {
     clearTimeout(carDebounce);
     carDebounce = null;
     doCarouselPreviewNow();
+  } else if (tab === 'ninepatch') {
+    clearTimeout(npDebounce);
+    npDebounce = null;
+    _fetchNinepatch();
   }
 }
 
@@ -637,6 +663,63 @@ document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
 });
 carEditText.addEventListener('input', () => { doCarouselPreview(); });
 document.getElementById('carFontSize').addEventListener('input', () => { doCarouselPreview(); });
+
+// ─── 点九验证 ──────────────────────────────────────────
+const npText = document.getElementById('npText');
+const npFontSize = document.getElementById('npFontSize');
+const npColor = document.getElementById('npColor');
+const hexNpColor = document.getElementById('hexNpColor');
+const ninepatchPreviews = document.getElementById('ninepatchPreviews');
+const ninepatchStatus = document.getElementById('ninepatchStatus');
+
+let npDebounce = null;
+
+function getNinepatchParams() {
+  return {
+    文字: npText.value,
+    字号: parseInt(npFontSize.value) || 36,
+    文字色: npColor.value,
+  };
+}
+
+function _fetchNinepatch() {
+  ninepatchStatus.innerHTML = '<span class="spinner"></span> 生成中...';
+  fetch('/generate_ninepatch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getNinepatchParams())
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      ninepatchStatus.textContent = '✅ 预览已更新';
+      // 显式固定展示顺序（不依赖后端返回顺序）：左格=左侧气泡，右格=右侧气泡
+      const order = ['左侧气泡', '右侧气泡'];
+      let html = '';
+      for (const name of order) {
+        const url = data.previews[name];
+        if (!url) continue;
+        html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+      }
+      ninepatchPreviews.innerHTML = html;
+    } else {
+      ninepatchStatus.textContent = '❌ ' + (data.error || '生成失败');
+    }
+  })
+  .catch(() => { ninepatchStatus.textContent = '❌ 请求失败'; });
+}
+
+function doNinepatchPreview() {
+  clearTimeout(npDebounce);
+  npDebounce = setTimeout(_fetchNinepatch, 300);
+}
+
+npText.addEventListener('input', doNinepatchPreview);
+npFontSize.addEventListener('input', doNinepatchPreview);
+npColor.addEventListener('input', () => {
+  hexNpColor.textContent = npColor.value;
+  doNinepatchPreview();
+});
 
 colorText.addEventListener('input', () => {
   if (darkAuto.text) colorTextDark.value = darkenHex(colorText.value);

@@ -409,6 +409,13 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
             return Image.open(p).convert('RGBA')
         return None
 
+    def load_override(n):
+        # 优先用户上传的背景大图，否则用默认素材（原素材根目录）
+        p = os.path.join(user_dir, n)
+        if os.path.exists(p):
+            return Image.open(p).convert('RGBA')
+        return load_src(n)
+
     def draw_edit_text(img):
         """在所有图片相同位置绘制编辑文字"""
         if not edit_text:
@@ -440,7 +447,7 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
 
     # ---- (1) 主页皮肤.png ----
     def img1():
-        bg = apply_base(load_src('主页皮肤.png'))
+        bg = apply_base(load_override('主页皮肤.png'))
         bg = paste_at(bg, load_color('1.png', text_color), 507, 2120)
         return bg
     result['主页皮肤.png'] = make_with_text(img1)
@@ -543,6 +550,74 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
     result['被赞动效.jpg'] = bg5_rgb
 
     return result
+
+
+def _generate_ninepatch(text='', font_size=36, text_color=(51, 51, 51)):
+    """点九验证：严格按点九标准渲染，不做任何美化。
+
+    - 源图：left_.9.png / right_.9.png（优先用户上传，回退打包目录），176×176
+    - 换行：每行 NINEPATCH_LINE_CHARS 个字，超出自动换行，气泡高度随行数增长
+    - 尺寸：气泡 = 文字恰好填满内容区 + 右/下边线 padding，无额外留白；
+      且不小于上/左拉伸区固定部分（fixed_left+fixed_right / fixed_top+fixed_bottom）
+    - 拉伸：只拉伸上/左边线标记的区域内，其余区域固定
+    - 文字：苹方字体，所有行左对齐（靠内容区左边缘）放在右/下边线标记的内容区内（对应右/下两条黑线）
+    返回 {文件名: Image}。
+    """
+    from PIL import ImageDraw, ImageFont
+
+    def load_9(n):
+        p = os.path.join(USER_DATA_DIR, n)
+        if os.path.exists(p):
+            return Image.open(p).convert('RGBA')
+        return Image.open(os.path.join(WORK_DIR, n)).convert('RGBA')
+
+    def load_font(size):
+        for fp in [os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf'),
+                   'C:/Windows/Fonts/msyh.ttc']:
+            try:
+                return ImageFont.truetype(fp, size)
+            except Exception:
+                continue
+        return ImageFont.load_default()
+
+    def build(img):
+        np_params = parse_nine_patch(img)
+        pl, pr = np_params['pad_left'], np_params['pad_right']
+        pt, pb = np_params['pad_top'], np_params['pad_bottom']
+        min_w = np_params['fixed_left'] + np_params['fixed_right']
+        min_h = np_params['fixed_top'] + np_params['fixed_bottom']
+
+        # 每行 NINEPATCH_LINE_CHARS 个字，超出换行
+        lines = [text[i:i + NINEPATCH_LINE_CHARS]
+                 for i in range(0, len(text), NINEPATCH_LINE_CHARS)] if text else []
+        font = load_font(font_size)
+        if lines:
+            ascent, descent = font.getmetrics()
+            line_h = ascent + descent
+            text_w = max(font.getbbox(ln)[2] - font.getbbox(ln)[0] for ln in lines)
+            text_h = line_h * len(lines)
+        else:
+            text_w = text_h = 0
+            line_h = 0
+        target_w = max(min_w, text_w + pl + pr)
+        target_h = max(min_h, text_h + pt + pb)
+
+        bubble = nine_patch_scale(img, target_w, target_h, np_params)
+        if lines:
+            draw = ImageDraw.Draw(bubble)
+            # 全部行左对齐（靠内容区左边缘）
+            for i, ln in enumerate(lines):
+                cy = pt + i * line_h + line_h // 2
+                draw.text((pl, cy), ln, font=font,
+                          fill=text_color + (255,), anchor="lm")
+        return bubble
+
+    left = build(load_9('left_.9.png'))
+    right = build(load_9('right_.9.png'))
+    return {"左侧气泡": left, "右侧气泡": right}
+
+
+NINEPATCH_LINE_CHARS = 10  # 点九验证：每行最多字符数，超出自动换行
 
 
 def _save_colors(path, tc, tag, bg):

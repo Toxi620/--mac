@@ -186,6 +186,31 @@ def generate_carousel():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/generate_ninepatch", methods=["POST"])
+def generate_ninepatch():
+    """点九验证预览：按点九标准拉伸左/右气泡，内容区绘制苹方文字"""
+    data = request.get_json()
+    text = data.get("文字", "")
+    size = int(data.get("字号", 36))
+    color = hex_to_rgb(data.get("文字色", "#333333"))
+    try:
+        imgs = pipeline._generate_ninepatch(
+            text=text, font_size=size, text_color=color)
+        import base64
+        result = {}
+        for name, img in imgs.items():
+            w, h = img.size
+            if w > 600:
+                r = 600 / w
+                img = img.resize((600, round(h * r)), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            result[name] = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
+        return jsonify({"ok": True, "previews": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/export_carousel", methods=["POST"])
 def export_carousel():
     """导出商城轮播图文物料 ZIP"""
@@ -234,7 +259,7 @@ def export_carousel():
 @app.route("/upload_carousel", methods=["POST"])
 def upload_carousel():
     """上传轮播图素材"""
-    ALLOWED = {"头像挂件.png", "方图.png", "star_001_mobile_new.png", "gua#ff5582.png"}
+    ALLOWED = {"头像挂件.png", "方图.png", "star_001_mobile_new.png", "gua#ff5582.png", "主页皮肤.png"}
     fname = request.form.get("name")
     if fname not in ALLOWED:
         return jsonify({"ok": False, "error": f"name 必须为 {ALLOWED}"}), 400
@@ -268,19 +293,37 @@ if __name__ == "__main__":
     import webbrowser, threading, os as _os, socket
 
     is_frozen = getattr(sys, 'frozen', False)
-    # 找可用端口
-    port = 5001
-    for _ in range(10):
+
+    # 找可用端口：debug 重载时会重启子进程，用环境变量记住端口避免每次漂移
+    port = None
+    port_env = _os.environ.get('WALLPAPER_PORT')
+    if port_env:
+        try:
+            port = int(port_env)
+        except (TypeError, ValueError):
+            port = None
+    # 验证端口仍可用，被占用则重新探测
+    if port is not None:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.bind(("127.0.0.1", port))
             s.close()
-            break
         except OSError:
-            port += 1
-            continue
-    else:
-        port = 5001  # 都占用了也硬试
+            port = None
+    if port is None:
+        port = 5001
+        for _ in range(10):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind(("127.0.0.1", port))
+                s.close()
+                break
+            except OSError:
+                port += 1
+                continue
+        else:
+            port = 5001  # 都占用了也硬试
+    _os.environ['WALLPAPER_PORT'] = str(port)
 
     url = f"http://localhost:{port}"
     if not is_frozen:
