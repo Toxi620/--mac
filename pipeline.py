@@ -985,6 +985,12 @@ def _ffmpeg_bin():
     return shutil.which('ffmpeg'), shutil.which('ffprobe')
 
 
+def _swflags():
+    """Windows 打包版(无控制台)调 ffmpeg/ffprobe 时禁止弹控制台窗口。"""
+    import os
+    return 0x08000000 if os.name == 'nt' else 0   # CREATE_NO_WINDOW
+
+
 def load_gif_abs(path):
     """逐帧解码 gif → (绝对帧 RGBA 列表, 每帧毫秒列表)。
 
@@ -1023,7 +1029,7 @@ def read_mp4_frames(path, max_frames=0):
     prob = subprocess.run(
         [fp, '-v', 'error', '-select_streams', 'v:0',
          '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', path],
-        capture_output=True, text=True)
+        capture_output=True, text=True, creationflags=_swflags())
     try:
         info = json.loads(prob.stdout)['streams'][0]
         w, h = int(info['width']), int(info['height'])
@@ -1039,7 +1045,8 @@ def read_mp4_frames(path, max_frames=0):
     if max_frames:
         cmd += ['-frames:v', str(max_frames)]
     cmd += ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            creationflags=_swflags())
     frame_size = w * h * 3
     frames = []
     try:
@@ -1142,7 +1149,7 @@ def _ffmpeg_gif(frames, durs_ms, colors=256, dither='sierra2_4a'):
         r = subprocess.run(
             [ff, '-y', '-f', 'concat', '-safe', '0', '-i', 'list.txt',
              '-filter_complex', vf, '-loop', '0', 'out.gif'],
-            capture_output=True, text=True, cwd=td)
+            capture_output=True, text=True, cwd=td, creationflags=_swflags())
         if r.returncode != 0 or not os.path.exists(out):
             return None
         with open(out, 'rb') as fh:
