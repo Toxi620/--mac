@@ -78,7 +78,10 @@ def get_colors() -> dict:
             "我也想要颜色": h(pipeline.DEFAULT_CAROUSEL_WANT_COLOR),
             "气泡底框颜色": h(pipeline.DEFAULT_CAROUSEL_BUBBLE_BG),
             "气泡底框预置色": [h(c) for c in pipeline.CAROUSEL_BUBBLE_PRESETS],
-            "编辑字色": h(pipeline.DEFAULT_CAROUSEL_EDIT_COLOR)}
+            "编辑字色": h(pipeline.DEFAULT_CAROUSEL_EDIT_COLOR),
+            "点赞底部颜色左": h(pipeline.DEFAULT_LIKE_BOTTOM_LEFT),
+            "点赞底部颜色右": h(pipeline.DEFAULT_LIKE_BOTTOM_RIGHT),
+            "点赞文字色": h(pipeline.DEFAULT_LIKE_TEXT_COLOR)}
 
 
 @app.route("/")
@@ -256,10 +259,87 @@ def export_carousel():
                      as_attachment=True, download_name="商城预览物料.zip")
 
 
+def _carousel_and_like_params(data):
+    """从请求 JSON 统一解析轮播色 + 点赞三色，返回传给 _generate_carousel 与 compose_* 的参数。"""
+    src = pipeline.CAROUSEL_DIR
+    ud = pipeline.USER_DATA_DIR
+    tc = hex_to_rgb(data.get("轮播文字色", "#0066ff"))
+    wc = hex_to_rgb(data.get("我也想要颜色", "#333333"))
+    bc = hex_to_rgb(data.get("底框颜色", "#b482d2"))
+    bbc = hex_to_rgb(data.get("气泡底框颜色", "#ff8f56"))
+    ec = hex_to_rgb(data.get("编辑字色", "#827373"))
+    et = data.get("编辑文字", "")
+    es = int(data.get("编辑字号", 36))
+    tag_c = hex_to_rgb(data.get("tag色", "#979e9c"))
+    tag_bg_c = hex_to_rgb(data.get("tag底板色", "#e5fed1"))
+    btc = hex_to_rgb(data.get("文字色", "#9f69c5"))
+    ll = hex_to_rgb(data.get("点赞底部颜色左", "#fead3a"))
+    lr = hex_to_rgb(data.get("点赞底部颜色右", "#ff8f56"))
+    lt = hex_to_rgb(data.get("点赞文字色", "#b8a8ca"))
+    return dict(tc=tc, wc=wc, bc=bc, bbc=bbc, ec=ec, et=et, es=es,
+                tag_c=tag_c, tag_bg_c=tag_bg_c, btc=btc,
+                ll=ll, lr=lr, lt=lt, src=src, ud=ud)
+
+
+@app.route("/generate_gif", methods=["POST"])
+def generate_gif():
+    """动效预览：主页皮肤.gif + 被赞动效.gif（全尺寸，耗时较长）"""
+    import base64
+    p = _carousel_and_like_params(request.get_json())
+    try:
+        static = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
+                                             p['et'], p['es'], p['src'], p['ud'],
+                                             p['tag_c'], p['tag_bg_c'], p['btc'])
+        home = pipeline.compose_home_gif(static, p['ud'], preview_w=360)
+        like = pipeline.compose_like_gif(static, p['ll'], p['lr'], p['lt'], p['src'], p['ud'], preview_w=360)
+        result = {}
+        for name, raw in list(home.items()) + list(like.items()):
+            if name.endswith('.gif'):
+                result[name] = "data:image/gif;base64," + base64.b64encode(raw).decode()
+        return jsonify({"ok": True, "previews": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/export_gif", methods=["POST"])
+def export_gif():
+    """导出动效物料 ZIP：主页皮肤.gif / 被赞动效.gif / db#<点赞文字色hex>.png"""
+    import zipfile, io as io2
+    p = _carousel_and_like_params(request.get_json())
+    try:
+        static = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
+                                             p['et'], p['es'], p['src'], p['ud'],
+                                             p['tag_c'], p['tag_bg_c'], p['btc'])
+        home = pipeline.compose_home_gif(static, p['ud'])
+        like = pipeline.compose_like_gif(static, p['ll'], p['lr'], p['lt'], p['src'], p['ud'])
+        out_dir = os.path.join(pipeline.OUTPUT_DIR, '动效物料')
+        os.makedirs(out_dir, exist_ok=True)
+        for name, raw in home.items():
+            with open(os.path.join(out_dir, name), 'wb') as f:
+                f.write(raw)
+        for name, obj in like.items():
+            fp = os.path.join(out_dir, name)
+            if name.endswith('.gif'):
+                with open(fp, 'wb') as f:
+                    f.write(obj)
+            else:
+                obj.save(fp, format='PNG')
+        zip_buf = io2.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in os.listdir(out_dir):
+                fp = os.path.join(out_dir, f)
+                zf.write(fp, f)
+        zip_buf.seek(0)
+        return send_file(zip_buf, mimetype="application/zip",
+                         as_attachment=True, download_name="动效物料.zip")
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/upload_carousel", methods=["POST"])
 def upload_carousel():
     """上传轮播图素材"""
-    ALLOWED = {"头像挂件.png", "方图.png", "star_001_mobile_new.png", "gua#ff5582.png", "主页皮肤.png"}
+    ALLOWED = {"头像挂件.png", "方图.png", "star_001_mobile_new.png", "gua#ff5582.png", "主页皮肤.png", "聊天头像.png", "气泡框.gif", "皮肤封面.mp4", "点赞.gif"}
     fname = request.form.get("name")
     if fname not in ALLOWED:
         return jsonify({"ok": False, "error": f"name 必须为 {ALLOWED}"}), 400

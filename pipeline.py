@@ -92,6 +92,12 @@ DEFAULT_TEXT_COLOR = (159, 105, 197)    # #9f69c5
 DEFAULT_TAG_COLOR = (151, 158, 156)     # #979e9c
 DEFAULT_TAG_BG_COLOR = (229, 254, 209)  # #e5fed1
 
+# 动效gif 点赞相关默认色
+DEFAULT_LIKE_BOTTOM_LEFT = (254, 173, 58)   # 点赞底部颜色左  #fead3a
+DEFAULT_LIKE_BOTTOM_RIGHT = (255, 143, 86)  # 点赞底部颜色右  #ff8f56
+DEFAULT_LIKE_TEXT_COLOR = (184, 168, 202)   # 点赞文字色      #b8a8ca
+GIF_MAX_BYTES = 8 * 1024 * 1024             # 单张 gif 超过即压缩
+
 
 # ─── Phase A: 初始化 ─────────────────────────────────────────────
 
@@ -416,6 +422,47 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
             return Image.open(p).convert('RGBA')
         return load_src(n)
 
+    # ---- 聊天头像：裁透明边 → 圆形粘贴（形如 03/椭圆 7.png，圆内切于正方形）----
+    _avatar_cropped = None  # 缓存"裁透明边后"的内容图；False 表示无上传
+
+    def get_avatar():
+        """加载并缓存用户上传的聊天头像（裁掉四周透明像素）。没上传返回 None。"""
+        nonlocal _avatar_cropped
+        if _avatar_cropped is None:
+            im = load_user('聊天头像.png')
+            if im is None:
+                _avatar_cropped = False
+            else:
+                box = im.getbbox()
+                if box and box[2] > box[0] and box[3] > box[1]:
+                    _avatar_cropped = im.crop(box)
+                else:
+                    _avatar_cropped = False
+        return _avatar_cropped if _avatar_cropped is not False else None
+
+    def paste_avatar(bg, x, y, wh):
+        """把聊天头像盖成直径=wh 的圆贴到 bg：(x,y)=外接正方形左上角。无上传则跳过。"""
+        im = get_avatar()
+        if im is None:
+            return bg
+        cw, ch = im.size
+        k = wh / min(cw, ch)  # cover：等比放大到铺满 wh×wh
+        if abs(k - 1) > 1e-9:
+            im = im.resize((max(1, int(round(cw * k))),
+                            max(1, int(round(ch * k)))), Image.LANCZOS)
+        nw, nh = im.size
+        l, t = (nw - wh) // 2, (nh - wh) // 2
+        im = im.crop((l, t, l + wh, t + wh))
+        # 圆形 alpha 蒙版（2x 超采样抗锯齿）
+        s = wh * 2
+        mask = Image.new('L', (s, s), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, s - 1, s - 1), fill=255)
+        mask = mask.resize((wh, wh), Image.LANCZOS)
+        out = Image.new('RGBA', (wh, wh), (0, 0, 0, 0))
+        out.paste(im, (0, 0), mask)
+        bg.paste(out, (x, y), out)
+        return bg
+
     def draw_edit_text(img):
         """在所有图片相同位置绘制编辑文字"""
         if not edit_text:
@@ -461,19 +508,28 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         bg = paste_at(bg, load_user('star_001_mobile_new.png'), 834, 288, 282, 125)
         bg = paste_at(bg, load_color('我也想要！.png', want_color), 191, 1761)
         bg = paste_at(bg, load_color('pic1.png', bubble_bg_color), 169, 1744)
+        # 需求新增：用户聊天头像(圆形)+1.png
+        bg = paste_avatar(bg, 37, 1679, 118)
+        bg = paste_at(bg, load_src('1.png'), 111, 1754)
         bg = paste_at(bg, load_color('2.png', text_color), 507, 2120)
         return bg
     result['卡片背景.png'] = make_with_text(img2)
 
     # ---- (3) 评论气泡.png ----
     def img3():
-        bg = apply_base(load_src('评论气泡.png'))
+        # 底图换为需求新素材"图层 1086.png"
+        bg = apply_base(load_src('图层 1086.png'))
         bg = paste_at(bg, load_color('评论气泡底色2.png', bubble_bg_color), 171, 570)
         bg = paste_at(bg, load_color('评论气泡底色1.png', bubble_bg_color), 413, 1087)
         bg = paste_at(bg, load_color('评论气泡-我也想要！.png', want_color), 446, 1115)
         gua = load_user('gua#ff5582.png')
         bg = paste_at(bg, gua, 505, 616, 139, 54)
         bg = paste_at(bg, gua, 639, 1145)
+        # 需求新增，严格照 txt 顺序自下而上贴（会有遮挡属预期）
+        bg = paste_avatar(bg, 40, 1074, 116)
+        bg = paste_at(bg, load_src('评论放大.png'), 0, 774)
+        bg = paste_avatar(bg, 212, 998, 170)
+        bg = paste_at(bg, load_src('图层 1088.png'), 319, 1106)
         bg = paste_at(bg, load_color('3.png', text_color), 507, 2120)
         return bg
     result['评论气泡.png'] = make_with_text(img3)
@@ -503,10 +559,13 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         bg.paste(link, sp(212, 724), link)
         bg.paste(ai, sp(220, 734), ai)
 
-        # 聊天气泡头像/中/上
+        # 聊天气泡头像/中/上；叠层按需求：头像.png → 头像(2处) → 上.png → 上头像
         bg = paste_at(bg, load_src('聊天气泡头像.png'), 0, 0)
         bg = paste_at(bg, load_src('聊天气泡中.png'), 0, 0)
+        bg = paste_avatar(bg, 34, 540, 122)
+        bg = paste_avatar(bg, 34, 1103, 122)
         bg = paste_at(bg, load_src('聊天气泡上.png'), 0, 890)
+        bg = paste_avatar(bg, 161, 890 + 253, 165)
 
         # 底框 (和其他4张图相同位置，不缩放)
         bg = paste_at(bg, load_color('底框.png', bg_color), 362, 2079)
@@ -541,6 +600,9 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         bg = paste_at(bg, load_user('star_001_mobile_new.png'), 834, 288, 282, 125)
         bg = paste_at(bg, load_color('我也想要！.png', want_color), 191, 1761)
         bg = paste_at(bg, load_color('pic1.png', bubble_bg_color), 169, 1744)
+        # 需求新增：用户聊天头像(圆形)+1.png（与卡片背景页一致）
+        bg = paste_avatar(bg, 37, 1679, 118)
+        bg = paste_at(bg, load_src('1.png'), 111, 1754)
         bg = paste_at(bg, load_color('5.png', text_color), 507, 2120)
         return bg
     bg5 = img5()
@@ -898,3 +960,387 @@ def preview(text_color, tag_color, tag_bg_color,
 
 if __name__ == '__main__':
     main()
+
+
+# ═══ 阶段二：主页皮肤.gif / 被赞动效.gif 动效合成 ═══════════════════
+
+def _ffmpeg_bin():
+    """定位 ffmpeg/ffprobe：(打包bundle内 sys._MEIPASS / exe同目录) → 脚本同目录 → PATH。
+
+    打包时需把 ffmpeg.exe/ffprobe.exe 用 --add-data/--add-binary 打进 bundle。
+    """
+    import sys, os, shutil
+    is_win = os.name == 'nt'
+    ff, fp = ('ffmpeg.exe', 'ffprobe.exe') if is_win else ('ffmpeg', 'ffprobe')
+    bases = []
+    if getattr(sys, 'frozen', False):
+        bases += [getattr(sys, '_MEIPASS', ''), os.path.dirname(sys.executable)]
+    bases.append(os.path.dirname(os.path.abspath(__file__)))
+    for b in bases:
+        if not b:
+            continue
+        p1, p2 = os.path.join(b, ff), os.path.join(b, fp)
+        if os.path.exists(p1) and os.path.exists(p2):
+            return p1, p2
+    return shutil.which('ffmpeg'), shutil.which('ffprobe')
+
+
+def load_gif_abs(path):
+    """逐帧解码 gif → (绝对帧 RGBA 列表, 每帧毫秒列表)。
+
+    处理 disposal：透明处让位给上一帧内容，导出每帧的完整画面。
+    """
+    im = Image.open(path)
+    n = getattr(im, 'n_frames', 1)
+    frames, durs = [], []
+    prev = None
+    for i in range(n):
+        im.seek(i)
+        dur = int(im.info.get('duration', 0) or 100)
+        disp = int(getattr(im, 'disposal_method', 0) or 0)
+        fr = im.convert('RGBA')
+        if prev is None or disp == 2:      # dispose 到背景：从透明底开始
+            canvas = fr
+        elif disp == 3:                    # 恢复到上一帧前
+            canvas = prev.copy()
+            canvas.alpha_composite(fr)
+        else:                              # 不清除：叠加到上一帧
+            canvas = prev.copy()
+            canvas.alpha_composite(fr)
+        frames.append(canvas)
+        durs.append(dur)
+        prev = canvas
+    return frames, durs
+
+
+def read_mp4_frames(path, max_frames=0):
+    """用 ffmpeg/ffprobe 解 mp4 → (RGBA 帧列表, fps)。（不再依赖 cv2，便于打包）"""
+    import json, subprocess
+    ff, fp = _ffmpeg_bin()
+    if not ff or not fp:
+        raise RuntimeError("未找到 ffmpeg/ffprobe，无法解码 mp4")
+    # 探测宽高与帧率
+    prob = subprocess.run(
+        [fp, '-v', 'error', '-select_streams', 'v:0',
+         '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', path],
+        capture_output=True, text=True)
+    try:
+        info = json.loads(prob.stdout)['streams'][0]
+        w, h = int(info['width']), int(info['height'])
+        n, d = info.get('r_frame_rate', '24/1').split('/')
+        fps = float(n) / float(d) if float(d) else 24.0
+    except Exception:
+        return [], 24.0
+    if fps <= 0:
+        fps = 24.0
+
+    import numpy as np
+    cmd = [ff, '-v', 'error', '-i', path]
+    if max_frames:
+        cmd += ['-frames:v', str(max_frames)]
+    cmd += ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    frame_size = w * h * 3
+    frames = []
+    try:
+        while proc.stdout:
+            buf = bytearray(frame_size)
+            got = 0
+            while got < frame_size:
+                chunk = proc.stdout.read(frame_size - got)
+                if not chunk:
+                    break
+                buf[got:got + len(chunk)] = chunk
+                got += len(chunk)
+            if got < frame_size:
+                break
+            arr = np.frombuffer(bytes(buf), dtype=np.uint8).reshape(h, w, 3).copy()
+            frames.append(Image.fromarray(arr, 'RGB').convert('RGBA'))
+            if max_frames and len(frames) >= max_frames:
+                break
+    finally:
+        proc.terminate()
+    return frames, fps
+
+
+def _like_alpha(i, n):
+    """点赞胶囊+文字的显隐系数 0..1。
+
+    出现：参考第1帧 0%、第4帧→100%；之后保持 100% 直到最后一帧，
+    与点赞gif内容在循环点一起消失（避免框比gif早走一帧）。
+    参考总帧=19 等比换算到实际帧数 n。
+    """
+    if n <= 0:
+        return 0.0
+    p = (i + 1) * 19.0 / n          # 把 (i+1) 投到参考坐标系 1..19
+    if p <= 1:
+        return 0.0
+    if p <= 4:
+        return (p - 1) / 3.0
+    return 1.0
+
+
+def _gradient_rect(left, right, w=206, h=84):
+    """纯左右渐变(左→右)的长方形图 RGBA（=导出的 db#xxx.png 本体）。"""
+    import numpy as np
+    arr = np.zeros((h, w, 4), dtype=np.uint8)
+    for x in range(w):
+        t = x / (w - 1)
+        arr[:, x, 0] = int(left[0] + (right[0] - left[0]) * t)
+        arr[:, x, 1] = int(left[1] + (right[1] - left[1]) * t)
+        arr[:, x, 2] = int(left[2] + (right[2] - left[2]) * t)
+    arr[:, :, 3] = 255
+    return Image.fromarray(arr, 'RGBA')
+
+
+def _capsule_img(src_dir, left, right, w=206, h=84):
+    """左右渐变用 胶囊.png(拉伸到同尺寸) 当蒙版 → 胶囊成品 RGBA（gif 内使用）。
+
+    默认 206×84；页上胶囊传胶囊.png 原生尺寸(479×84)。
+    """
+    grad = _gradient_rect(left, right, w, h)
+    mask = Image.open(os.path.join(src_dir, '胶囊.png')).convert('RGBA')
+    mask = mask.resize((w, h), Image.LANCZOS)
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    out.paste(grad, (0, 0), mask)
+    return out
+
+
+def _load_like_text(src_dir, color):
+    """点赞文字.png（改颜色的/ 优先）染成 点赞文字色。"""
+    for p in [os.path.join(src_dir, '改颜色的', '点赞文字.png'),
+              os.path.join(src_dir, '点赞文字.png')]:
+        if os.path.isfile(p):
+            return color_replace_simple(Image.open(p).convert('RGBA'), color)
+    return None
+
+
+def _ffmpeg_gif(frames, durs_ms, colors=256, dither='sierra2_4a'):
+    """用 ffmpeg palettegen/paletteuse 编码 GIF（保色更好，参考动态壁纸项目）。
+
+    逐帧写 PNG → concat 带各自时长 → 全局调色板 + 抖动。无 ffmpeg 返回 None（回退 PIL）。
+    """
+    import os, subprocess, tempfile
+    ff, _ = _ffmpeg_bin()
+    if not ff or not frames:
+        return None
+    with tempfile.TemporaryDirectory() as td:
+        paths, lines = [], []
+        for i, fr in enumerate(frames):
+            p = f'f{i:04d}.png'
+            fr.convert('RGB').save(os.path.join(td, p), compress_level=0, optimize=False)
+            paths.append(p)
+            sec = max(0.02, durs_ms[i] / 1000.0)
+            lines.append(f"file '{p}'")
+            lines.append(f"duration {sec:.3f}")
+        lines.append(f"file '{paths[-1]}'")   # gif 末帧重复占位
+        with open(os.path.join(td, 'list.txt'), 'w', encoding='utf-8') as fh:
+            fh.write('\n'.join(lines) + '\n')
+        out = os.path.join(td, 'out.gif')
+        vf = (f"[0:v]split[s0][s1];[s0]palettegen=max_colors={colors}[p];"
+              f"[s1][p]paletteuse=dither={dither}")
+        r = subprocess.run(
+            [ff, '-y', '-f', 'concat', '-safe', '0', '-i', 'list.txt',
+             '-filter_complex', vf, '-loop', '0', 'out.gif'],
+            capture_output=True, text=True, cwd=td)
+        if r.returncode != 0 or not os.path.exists(out):
+            return None
+        with open(out, 'rb') as fh:
+            return fh.read()
+
+
+def _save_gif_bytes(frames, durs_ms, max_bytes=GIF_MAX_BYTES, shared_palette=False):
+    """编码 GIF bytes。优先 ffmpeg 全局调色板保色；无 ffmpeg 回退 PIL。
+
+    预览(shared_palette=True)：bayer 抖动更快更小；导出：sierra2_4a 更贴源片色。
+    超过 max_bytes：逐级“降色 + 抽帧减半”，直到压进阈值。
+    """
+    import io
+
+    def halve(fs, ds):
+        f2 = fs[::2]
+        d2 = []
+        for j in range(0, len(ds), 2):
+            d2.append(max(1, int(round(sum(ds[j:j + 2])))))
+        return f2, d2[:len(f2)]
+
+    if frames:
+        dither = 'bayer:bayer_scale=2' if shared_palette else 'sierra2_4a'
+        last = None
+        fs, ds = frames, durs_ms
+        # 计划：0/1 全帧降色 → 之后逐步抽帧减半 + 继续降色
+        plan = [(256, 0), (160, 0), (128, 1), (96, 1), (80, 2), (64, 2), (48, 3)]
+        if shared_palette:
+            plan = [(128, 0), (96, 0), (80, 1), (64, 1), (48, 2)]
+        for colors, halves in plan:
+            for _ in range(halves):
+                if len(fs) <= 1:
+                    break
+                fs, ds = halve(fs, ds)
+            if not fs:
+                break
+            data = _ffmpeg_gif(fs, ds, colors=colors, dither=dither)
+            if data is None:
+                break  # 无 ffmpeg → 走 PIL 回退
+            last = data
+            if len(data) <= max_bytes:
+                return data
+        if last is not None:
+            return last  # 已尽量压
+
+    def enc(colors, shared):
+        buf = io.BytesIO()
+        if shared:
+            src_idx = len(frames) // 2
+            pal = frames[src_idx].convert('RGB').quantize(
+                colors=colors, method=Image.MEDIANCUT, dither=Image.Dither.NONE)
+            first = frames[0].convert('RGB').quantize(palette=pal, dither=Image.Dither.NONE)
+            rest = [f.convert('RGB').quantize(palette=pal, dither=Image.Dither.NONE)
+                    for f in frames[1:]] if len(frames) > 1 else []
+        else:
+            q = lambda im: im.convert('RGB').quantize(
+                colors=colors, method=Image.MEDIANCUT, dither=Image.Dither.NONE)
+            first = q(frames[0])
+            rest = [q(f) for f in frames[1:]] if len(frames) > 1 else []
+        first.save(buf, format='GIF', save_all=True, append_images=rest,
+                   duration=durs_ms, loop=0)
+        return buf.getvalue()
+    data = enc(128 if shared_palette else 256, shared_palette)
+    if len(data) <= max_bytes:
+        return data
+    for colors in (96, 64, 32):
+        data = enc(colors, shared_palette)
+        if len(data) <= max_bytes:
+            break
+    return data
+
+
+def _gif_preview_scale(frames, preview_w):
+    """预览缩放到宽 preview_w（导出传 None 保持原尺寸）。"""
+    if not preview_w or not frames:
+        return frames
+    fw, fh = frames[0].size
+    if fw <= preview_w:
+        return frames
+    r = preview_w / fw
+    nh = max(1, int(round(fh * r)))
+    return [f.resize((preview_w, nh), Image.LANCZOS) for f in frames]
+
+
+def _gif_preview_trim(frames, durs_ms, limit):
+    """预览抽帧到 ≤limit 帧（等间隔取帧、时长合并，总时长近似不变）。"""
+    if len(frames) <= limit:
+        return frames, durs_ms
+    step = (len(frames) + limit - 1) // limit
+    fs = frames[::step][:limit]
+    ds = []
+    for j in range(0, len(frames), step):
+        ds.append(max(1, int(round(sum(durs_ms[j:j + step])))))
+    return fs, ds[:len(fs)]
+
+
+def compose_home_gif(static, user_dir, preview_w=None):
+    """主页皮肤.gif：皮肤封面mp4(等比缩放至同宽1242·底层) + 主页皮肤.png(实时) + 气泡框gif@(12,558) w257h276。
+
+    static: _generate_carousel() 的返回（取 '主页皮肤.png'）。
+    总时长/帧率以 mp4 为准；无 mp4 退化为单帧静态。preview_w 给预览宽（导出 None=全尺寸）。
+    返回 {文件名: GIF bytes}。
+    """
+    base = static['主页皮肤.png'].convert('RGBA')
+    mp4p = os.path.join(user_dir, '皮肤封面.mp4')
+    gifp = os.path.join(user_dir, '气泡框.gif')
+    has_gif = os.path.isfile(gifp)
+    if has_gif:
+        gframes, gdurs = load_gif_abs(gifp)
+        gtotal = sum(gdurs) or 1
+    else:
+        gframes, gdurs = [], []
+
+    def pick_bubble(t_ms):
+        acc, k = 0, 0
+        for k in range(len(gframes)):
+            acc += gdurs[k]
+            if t_ms < acc:
+                break
+        return k
+
+    def bubble_at(k):
+        return gframes[k].resize((257, 276), Image.LANCZOS)
+
+    if not os.path.isfile(mp4p):
+        c = base.copy()
+        if has_gif:
+            bf = bubble_at(0)
+            c.paste(bf, (12, 558), bf)
+        return {'主页皮肤.gif': _save_gif_bytes(_gif_preview_scale([c], preview_w), [300],
+                                                shared_palette=preview_w is not None)}
+
+    frames, fps = read_mp4_frames(mp4p)
+    dur = max(1, round(1000.0 / fps)) if fps else 100
+    W, H = base.size
+    # 皮肤封面mp4 等比缩放至与背景同宽 1242
+    if frames and frames[0].width != W:
+        fh = max(1, int(round(frames[0].height * W / frames[0].width)))
+        frames = [f.resize((W, fh), Image.LANCZOS) for f in frames]
+    out = []
+    for i, fr in enumerate(frames):
+        c = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        c.paste(fr, (0, 0), fr)
+        c = Image.alpha_composite(c, base)          # 主页皮肤.png 压视频上
+        if has_gif:
+            t = (i * dur) % gtotal
+            bf = bubble_at(pick_bubble(t))
+            c.paste(bf, (12, 558), bf)
+        out.append(c)
+    durs = [dur] * len(out)
+    if preview_w is not None:
+        out, durs = _gif_preview_trim(out, durs, 12)
+    out = _gif_preview_scale(out, preview_w)
+    return {'主页皮肤.gif': _save_gif_bytes(out, durs,
+                                            shared_palette=preview_w is not None)}
+
+
+def compose_like_gif(static, like_left, like_right, like_text, src_dir, user_dir, preview_w=None):
+    """被赞动效.gif：被赞动效.jpg(实时) + 点赞gif@(319,1027) + 胶囊渐变(拉伸到胶囊.png同宽高,蒙版)@(383,1512) + 点赞文字@(383,1511)。
+
+    胶囊+文字透明度按 _like_alpha 随点赞gif帧走。preview_w 给预览宽（导出 None=全尺寸）。
+    返回 {被赞动效.gif: bytes, db#hex.png: Image}（db 文件仍为 206×84 源图）。
+    """
+    base = static['被赞动效.jpg'].convert('RGBA')
+    like = os.path.join(user_dir, '点赞.gif')
+    db_img = _gradient_rect(like_left, like_right)                            # 206×84 长方形渐变（导出 db）
+    mask_path = os.path.join(src_dir, '胶囊.png')
+    cap_native = Image.open(mask_path).convert('RGBA').size if os.path.isfile(mask_path) else (479, 84)
+    cap_page = _capsule_img(src_dir, like_left, like_right, cap_native[0], cap_native[1])  # 页上胶囊=拉伸到胶囊.png同尺寸
+    txt = _load_like_text(src_dir, like_text)
+    dbname = 'db#' + ''.join('%02x' % c for c in like_text) + '.png'   # 小写、无加号
+
+    if not os.path.isfile(like):
+        c = base.copy()
+        return {'被赞动效.gif': _save_gif_bytes(_gif_preview_scale([c], preview_w), [300],
+                                                shared_palette=preview_w is not None), dbname: db_img}
+
+    frames, durs = load_gif_abs(like)
+    n = len(frames)
+
+    def with_alpha(im, a):
+        im = im.copy()
+        im.putalpha(Image.eval(im.getchannel('A'), lambda v: int(v * a)))
+        return im
+
+    out = []
+    for i, f in enumerate(frames):
+        c = base.copy()
+        c.paste(f, (319, 1027), f)
+        a = _like_alpha(i, n)
+        if a > 0.01:
+            ca = with_alpha(cap_page, a)
+            c.paste(ca, (383, 1512), ca)
+            if txt is not None:
+                t2 = with_alpha(txt, a)
+                c.paste(t2, (383, 1511), t2)
+        out.append(c)
+    if preview_w is not None:
+        out, durs = _gif_preview_trim(out, durs, 16)
+    out = _gif_preview_scale(out, preview_w)
+    return {'被赞动效.gif': _save_gif_bytes(out, durs, shared_palette=preview_w is not None), dbname: db_img}

@@ -16,7 +16,16 @@ git rev-parse --short HEAD > version.txt 2>nul
 if errorlevel 1 echo dev> version.txt
 for /f "delims=" %%i in (version.txt) do echo   版本: %%i
 
-echo === 2/6 打包 ===
+echo === 2/6 定位 ffmpeg（gif 动效用，需打进包） ===
+set "FFEXE=C:\Users\WINDOWS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.2-full_build\bin\ffmpeg.exe"
+set "FFPROBE=C:\Users\WINDOWS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.2-full_build\bin\ffprobe.exe"
+if not exist "%FFEXE%" (
+    echo   未找到 ffmpeg，请先安装: winget install Gyan.FFmpeg
+    exit /b 1
+)
+echo   ffmpeg: %FFEXE%
+
+echo === 3/6 打包 ===
 pyinstaller --onefile -w ^
   --distpath . ^
   --add-data "templates;templates" ^
@@ -35,11 +44,13 @@ pyinstaller --onefile -w ^
   --add-data "代码文档.docx;." ^
   --add-data "pipeline.py;." ^
   --add-data "version.txt;." ^
+  --add-binary "%FFEXE%;." ^
+  --add-binary "%FFPROBE%;." ^
   --hidden-import numpy ^
   --name "配色工具" ^
   server.py
 
-echo === 3/6 清理临时文件 ===
+echo === 4/6 清理临时文件 ===
 rmdir /s /q build 2>nul
 del 配色工具.spec 2>nul
 rmdir /s /q __pycache__ 2>nul

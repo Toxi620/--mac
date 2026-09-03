@@ -33,6 +33,19 @@ echo "=== 写入构建版本 (commit) ==="
 git rev-parse --short HEAD > version.txt 2>/dev/null || echo "dev" > version.txt
 echo "  版本: $(cat version.txt)"
 
+echo "=== 获取 ffmpeg (mac 静态二进制，gif 动效用) ==="
+FFMPEG_URL="https://evermeet.cx/ffmpeg/ffmpeg-7.1.zip"
+FFPROBE_URL="https://evermeet.cx/ffmpeg/ffprobe-7.1.zip"
+mkdir -p /tmp/ffmpeg-bundle
+if [ ! -f /tmp/ffmpeg-bundle/ffmpeg ]; then
+    curl -L -o /tmp/ffmpeg.zip "$FFMPEG_URL" && unzip -o /tmp/ffmpeg.zip -d /tmp/ffmpeg-bundle/
+fi
+if [ ! -f /tmp/ffmpeg-bundle/ffprobe ]; then
+    curl -L -o /tmp/ffprobe.zip "$FFPROBE_URL" && unzip -o /tmp/ffprobe.zip -d /tmp/ffmpeg-bundle/
+fi
+chmod +x /tmp/ffmpeg-bundle/ffmpeg /tmp/ffmpeg-bundle/ffprobe
+echo "  ffmpeg: $(/tmp/ffmpeg-bundle/ffmpeg -version 2>&1 | head -1)"
+
 echo "=== 2/6 清理旧缓存 ==="
 rm -rf build/ 配色工具.spec
 
@@ -55,6 +68,8 @@ python3 -m PyInstaller --onefile \
   --add-data "代码文档.docx:." \
   --add-data "pipeline.py:." \
   --add-data "version.txt:." \
+  --add-binary "/tmp/ffmpeg-bundle/ffmpeg:." \
+  --add-binary "/tmp/ffmpeg-bundle/ffprobe:." \
   --hidden-import numpy \
   --name "配色工具" \
   server.py

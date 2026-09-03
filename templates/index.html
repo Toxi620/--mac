@@ -301,10 +301,46 @@
     <div class="upload-group"><label>⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
     <div class="upload-group"><label>⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
     <div class="upload-group"><label>⬆ 气泡装饰 <input type="file" accept=".png" onchange="uploadCarousel('gua#ff5582.png',this)"></label></div>
+    <div class="upload-group"><label>⬆ 聊天头像 <input type="file" accept=".png" onchange="uploadCarousel('聊天头像.png',this)"></label></div>
   </div>
 
   <div id="carouselStatus" class="status"></div>
   <div class="previews" id="carouselPreviews"></div>
+
+  <div class="color-grid" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">👍 点赞动效</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">点赞底部颜色左</span>
+        <span class="hex" id="hexCarLikeL">{{ colors.点赞底部颜色左 }}</span>
+      </div>
+      <input type="color" id="carLikeL" value="{{ colors.点赞底部颜色左 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">点赞底部颜色右</span>
+        <span class="hex" id="hexCarLikeR">{{ colors.点赞底部颜色右 }}</span>
+      </div>
+      <input type="color" id="carLikeR" value="{{ colors.点赞底部颜色右 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">点赞文字色</span>
+        <span class="hex" id="hexCarLikeText">{{ colors.点赞文字色 }}</span>
+      </div>
+      <input type="color" id="carLikeText" value="{{ colors.点赞文字色 }}">
+    </div>
+  </div>
+
+  <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label>⬆ 气泡框gif <input type="file" accept=".gif" onchange="uploadCarousel('气泡框.gif',this)"></label></div>
+    <div class="upload-group"><label>⬆ 皮肤封面mp4 <input type="file" accept=".mp4" onchange="uploadCarousel('皮肤封面.mp4',this)"></label></div>
+    <div class="upload-group"><label>⬆ 点赞gif <input type="file" accept=".gif" onchange="uploadCarousel('点赞.gif',this)"></label></div>
+    <button class="btn btn-primary" id="btnExportGif" onclick="doExportCarouselGif()">📥 导出gif</button>
+  </div>
+
+  <div id="carouselGifStatus" class="status"></div>
+  <div class="previews" id="carouselGifPreviews" style="grid-template-columns:repeat(2,1fr);margin:6px auto 0;max-width:760px"></div>
 </div>
 
 <!-- ======== 点九验证面板 ======== -->
@@ -516,8 +552,19 @@ const carEditText = document.getElementById('carEditText');
 const carouselPreviews = document.getElementById('carouselPreviews');
 const carouselStatus = document.getElementById('carouselStatus');
 const btnExportCar = document.getElementById('btnExportCar');
+const carLikeL = document.getElementById('carLikeL');
+const carLikeR = document.getElementById('carLikeR');
+const carLikeText = document.getElementById('carLikeText');
+const hexCarLikeL = document.getElementById('hexCarLikeL');
+const hexCarLikeR = document.getElementById('hexCarLikeR');
+const hexCarLikeText = document.getElementById('hexCarLikeText');
+const carouselGifPreviews = document.getElementById('carouselGifPreviews');
+const carouselGifStatus = document.getElementById('carouselGifStatus');
+const btnExportGif = document.getElementById('btnExportGif');
 
 let carDebounce = null;
+let carGifDebounce = null;
+let carGifBusy = false;
 
 function switchTab(tab) {
   const panels = { bubble: 'bubblePanel', carousel: 'carouselPanel', ninepatch: 'ninepatchPanel' };
@@ -536,6 +583,7 @@ function switchTab(tab) {
     clearTimeout(carDebounce);
     carDebounce = null;
     doCarouselPreviewNow();
+    scheduleCarouselGif();
   } else if (tab === 'ninepatch') {
     clearTimeout(npDebounce);
     npDebounce = null;
@@ -555,6 +603,9 @@ function getCarouselColors() {
     tag底板色: colorBg.value,
     编辑字号: parseInt(carFontSize.value) || 36,
     文字色: colorText.value,
+    点赞底部颜色左: carLikeL.value,
+    点赞底部颜色右: carLikeR.value,
+    点赞文字色: carLikeText.value,
   };
 }
 
@@ -564,6 +615,9 @@ function updateCarouselHex() {
   hexCarWant.textContent = carWant.value;
   hexCarBubble.textContent = carBubble.value;
   hexCarEdit.textContent = carEdit.value;
+  hexCarLikeL.textContent = carLikeL.value;
+  hexCarLikeR.textContent = carLikeR.value;
+  hexCarLikeText.textContent = carLikeText.value;
   syncSwatches();
   // 气泡底框预置高亮
   document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
@@ -599,6 +653,66 @@ function doCarouselPreviewNow() { _fetchCarousel(); }
 function doCarouselPreview() {
   clearTimeout(carDebounce);
   carDebounce = setTimeout(_fetchCarousel, 300);
+  scheduleCarouselGif();
+}
+
+function scheduleCarouselGif() {
+  if (carGifBusy) return;
+  clearTimeout(carGifDebounce);
+  carGifDebounce = setTimeout(fetchCarouselGif, 600);
+}
+
+function fetchCarouselGif() {
+  if (carGifBusy) return;
+  carGifBusy = true;
+  carouselGifStatus.innerHTML = '<span class="spinner"></span> 动效生成中(全尺寸较慢)...';
+  fetch('/generate_gif', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getCarouselColors())
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      carouselGifStatus.textContent = '✅ 动效已更新';
+      let html = '';
+      for (const [name, url] of Object.entries(data.previews)) {
+        html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+      }
+      carouselGifPreviews.innerHTML = html;
+    } else {
+      carouselGifStatus.textContent = '❌ ' + (data.error || '动效生成失败');
+    }
+  })
+  .catch(() => { carouselGifStatus.textContent = '❌ 动效请求失败'; })
+  .finally(() => { carGifBusy = false; });
+}
+
+function doExportCarouselGif() {
+  btnExportGif.disabled = true;
+  carouselGifStatus.innerHTML = '<span class="spinner"></span> 动效导出中...';
+  fetch('/export_gif', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getCarouselColors())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '动效物料.zip';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    btnExportGif.disabled = false;
+    carouselGifStatus.textContent = '✅ 动效导出完成';
+  })
+  .catch(err => {
+    btnExportGif.disabled = false;
+    carouselGifStatus.textContent = '❌ ' + err.message;
+  });
 }
 
 function doExportCarousel() {
@@ -653,6 +767,9 @@ carBg.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview()
 carWant.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carBubble.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carEdit.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carLikeL.addEventListener('input', () => { updateCarouselHex(); scheduleCarouselGif(); });
+carLikeR.addEventListener('input', () => { updateCarouselHex(); scheduleCarouselGif(); });
+carLikeText.addEventListener('input', () => { updateCarouselHex(); scheduleCarouselGif(); });
 
 // 气泡底框五选一：点预置色圆点 → 写入隐藏 input 并派发 input 事件
 document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
