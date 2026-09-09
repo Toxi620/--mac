@@ -189,16 +189,17 @@ def generate_carousel():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@app.route("/generate_ninepatch", methods=["POST"])
-def generate_ninepatch():
-    """点九验证预览：按点九标准拉伸左/右气泡，内容区绘制苹方文字"""
+@app.route("/generate_promo", methods=["POST"])
+def generate_promo():
+    """气泡宣传预览：左/右气泡分别用各自文案，左对齐/右对齐"""
     data = request.get_json()
-    text = data.get("文字", "")
+    lt = data.get("左文字", "")
+    rt = data.get("右文字", "")
     size = int(data.get("字号", 36))
     color = hex_to_rgb(data.get("文字色", "#333333"))
     try:
-        imgs = pipeline._generate_ninepatch(
-            text=text, font_size=size, text_color=color)
+        imgs = pipeline._generate_promo(
+            left_text=lt, right_text=rt, font_size=size, text_color=color)
         import base64
         result = {}
         for name, img in imgs.items():
@@ -210,6 +211,33 @@ def generate_ninepatch():
             img.save(buf, format="PNG")
             result[name] = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
         return jsonify({"ok": True, "previews": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/export_promo", methods=["POST"])
+def export_promo():
+    """气泡宣传导出：左/右气泡全尺寸 PNG 打包 ZIP"""
+    import zipfile
+    data = request.get_json()
+    lt = data.get("左文字", "")
+    rt = data.get("右文字", "")
+    size = int(data.get("字号", 36))
+    color = hex_to_rgb(data.get("文字色", "#333333"))
+    try:
+        imgs = pipeline._generate_promo(
+            left_text=lt, right_text=rt, font_size=size, text_color=color)
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for arc, img in [("左气泡.png", imgs["左侧气泡"]),
+                             ("右气泡.png", imgs["右侧气泡"])]:
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                zf.writestr(arc, buf.getvalue())
+        zip_buf.seek(0)
+        return send_file(zip_buf, mimetype="application/zip",
+                         as_attachment=True, download_name="气泡宣传.zip")
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

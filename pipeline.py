@@ -44,6 +44,10 @@ DIR_ANDROID = os.path.join(OUTPUT_DIR, "安卓")  # 点九原图复制
 DEFAULT_GRADIENT_TOP = (229, 241, 255)      # #e5f1ff 浅蓝
 DEFAULT_GRADIENT_BOTTOM = (255, 255, 255)   # #ffffff 白
 
+# 04/原始矩形位置/left_.9.png 的红框（内容区），源图内部坐标（已去 1px 点九边框）
+# 中心相对 176 外框中心 = (-17,-1)。换左气泡素材时按对应参考图重测即可。
+PINK_LEFT_BOX = (11, 26, 128, 145)
+
 # 商城轮播图颜色
 DEFAULT_CAROUSEL_TEXT_COLOR = (0, 122, 255)       # 1~5.png 蓝色
 DEFAULT_CAROUSEL_BG_COLOR = (180, 130, 210)       # 底框.png / pic1.png 浅紫
@@ -292,6 +296,37 @@ def nine_patch_scale(im: Image.Image, target_w: int, target_h: int,
     paste_at('br', fl + stretch_w, ft + stretch_h)
 
     return result
+
+
+def map_rect_np(np_params: dict, box: tuple, out_w: int, out_h: int) -> tuple:
+    """把源图内部坐标里的矩形 box=(x0,y0,x1,y1) 按点九拉伸映射到 out_w×out_h 的气泡里。
+
+    映射规则与 nine_patch_scale 完全一致：左/上固定区不动、中间拉伸区等比放大、
+    右/下固定区整体平移。返回映射后的框 (x0,y0,x1,y1)（浮点）。
+    """
+    iw, ih = np_params['internal_w'], np_params['internal_h']
+    fl, fr = np_params['fixed_left'], np_params['fixed_right']
+    ft, fb = np_params['fixed_top'], np_params['fixed_bottom']
+    sw = (iw - fl - fr) or 1
+    sh = (ih - ft - fb) or 1
+    ow = out_w - fl - fr
+    oh = out_h - ft - fb
+
+    def mx(x):
+        if x < fl:
+            return x
+        elif x <= fl + sw:
+            return fl + (x - fl) * (ow / sw)
+        return fl + ow + (x - fl - sw)
+
+    def my(y):
+        if y < ft:
+            return y
+        elif y <= ft + sh:
+            return ft + (y - ft) * (oh / sh)
+        return ft + oh + (y - ft - sh)
+
+    return (mx(box[0]), my(box[1]), mx(box[2]), my(box[3]))
 
 
 # ─── 辅助函数 ─────────────────────────────────────────────────────
@@ -614,16 +649,17 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
     return result
 
 
-def _generate_ninepatch(text='', font_size=36, text_color=(51, 51, 51)):
-    """点九验证：严格按点九标准渲染，不做任何美化。
+def _generate_promo(left_text='', right_text='', font_size=36,
+                    text_color=(51, 51, 51)):
+    """气泡宣传：左/右气泡按各自文案生成，左气泡左对齐、右气泡右对齐。
 
     - 源图：left_.9.png / right_.9.png（优先用户上传，回退打包目录），176×176
-    - 换行：每行 NINEPATCH_LINE_CHARS 个字，超出自动换行，气泡高度随行数增长
-    - 尺寸：气泡 = 文字恰好填满内容区 + 右/下边线 padding，无额外留白；
-      且不小于上/左拉伸区固定部分（fixed_left+fixed_right / fixed_top+fixed_bottom）
-    - 拉伸：只拉伸上/左边线标记的区域内，其余区域固定
-    - 文字：苹方字体，所有行左对齐（靠内容区左边缘）放在右/下边线标记的内容区内（对应右/下两条黑线）
-    返回 {文件名: Image}。
+    - 采用「商城6字展示(预览)」的生成思路：气泡按文案包字（pad+文字宽/高），
+      不做严格点九内容区填充；不足时由素材固定区下限兜底。
+    - 换行只认输入里的手动换行（\n），不再自动截断。
+    - 文字：苹方（商城轮播同款字体），文字块在内容区内垂直居中，
+      左气泡靠内容区左缘、右气泡靠内容区右缘，两侧各留 PROMO_TEXT_INSET_X px。
+    返回 {"左侧气泡": Image, "右侧气泡": Image}。
     """
     from PIL import ImageDraw, ImageFont
 
@@ -642,44 +678,56 @@ def _generate_ninepatch(text='', font_size=36, text_color=(51, 51, 51)):
                 continue
         return ImageFont.load_default()
 
-    def build(img):
+    def split_lines(text):
+        """只在输入框手动换行处断行（不再按字数自动截断）。"""
+        return text.split('\n')
+
+    def build(img, text, align):
         np_params = parse_nine_patch(img)
         pl, pr = np_params['pad_left'], np_params['pad_right']
         pt, pb = np_params['pad_top'], np_params['pad_bottom']
         min_w = np_params['fixed_left'] + np_params['fixed_right']
         min_h = np_params['fixed_top'] + np_params['fixed_bottom']
 
-        # 每行 NINEPATCH_LINE_CHARS 个字，超出换行
-        lines = [text[i:i + NINEPATCH_LINE_CHARS]
-                 for i in range(0, len(text), NINEPATCH_LINE_CHARS)] if text else []
+        lines = split_lines(text) if text else []
         font = load_font(font_size)
         if lines:
             ascent, descent = font.getmetrics()
             line_h = ascent + descent
-            text_w = max(font.getbbox(ln)[2] - font.getbbox(ln)[0] for ln in lines)
-            text_h = line_h * len(lines)
+            text_w = max(font.getlength(ln) for ln in lines)
         else:
-            text_w = text_h = 0
-            line_h = 0
-        target_w = max(min_w, text_w + pl + pr)
-        target_h = max(min_h, text_h + pt + pb)
+            line_h = text_w = 0
+        text_h = line_h * len(lines)
 
+        # ≥2 行时首行上/末行下各加额外间距；单行仍整体居中不留
+        vinset = PROMO_TEXT_INSET_Y if len(lines) > 1 else 0
+        target_w = max(min_w, int(text_w) + pl + pr + 2 * PROMO_TEXT_INSET_X)
+        target_h = max(min_h, text_h + 2 * vinset + pt + pb)
         bubble = nine_patch_scale(img, target_w, target_h, np_params)
         if lines:
             draw = ImageDraw.Draw(bubble)
-            # 全部行左对齐（靠内容区左边缘）
+            # 文字块在内容区内垂直居中，并保证上/下至少 vinset
+            content_h = target_h - pt - pb
+            top = pt + vinset + max(0, (content_h - 2 * vinset - text_h) // 2)
             for i, ln in enumerate(lines):
-                cy = pt + i * line_h + line_h // 2
-                draw.text((pl, cy), ln, font=font,
-                          fill=text_color + (255,), anchor="lm")
+                cy = top + i * line_h + line_h // 2
+                if align == 'right':
+                    # 右气泡：靠内容区右缘 + 内侧留白，锚点 rm
+                    draw.text((target_w - pr - PROMO_TEXT_INSET_X, cy), ln,
+                              font=font, fill=text_color + (255,), anchor="rm")
+                else:
+                    # 左气泡：靠内容区左缘 + 内侧留白，锚点 lm
+                    draw.text((pl + PROMO_TEXT_INSET_X, cy), ln, font=font,
+                              fill=text_color + (255,), anchor="lm")
         return bubble
 
-    left = build(load_9('left_.9.png'))
-    right = build(load_9('right_.9.png'))
+    left = build(load_9('left_.9.png'), left_text, 'left')
+    right = build(load_9('right_.9.png'), right_text, 'right')
     return {"左侧气泡": left, "右侧气泡": right}
 
 
-NINEPATCH_LINE_CHARS = 10  # 点九验证：每行最多字符数，超出自动换行
+PROMO_TEXT_INSET_X = 14  # 气泡宣传：文字与内容区左右边缘之间的留白（px）
+PROMO_TEXT_INSET_Y = 8   # 气泡宣传：≥2 行时，首行上/末行下的额外间距（px）
 
 
 def _save_colors(path, tc, tag, bg):
@@ -761,10 +809,30 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
     right_night_borderless = right_night.crop((1, 1, right_night.width - 1, right_night.height - 1))
 
     # Phase E: 商城展示图（气泡 + 文字叠加）
+    # 无字导出图保持原样：整颗气泡 420×174
     shop = nine_patch_scale(left_9, 420, 174, np_left)
-    shop_with_text = shop.copy() if shop_text_img is not None else None
+    shop_with_text = shop
     if shop_text_img is not None:
-        shop_with_text.paste(shop_text_img, (0, 0), shop_text_img)
+        # (预览) 版：气泡先按点九包住 6 字 → 再以文字中心为轴横着拉伸填满 420 宽
+        glyph = shop_text_img.getbbox()
+        if glyph:
+            gl, gt, gr, gb = glyph
+            gw, gh = gr - gl, gb - gt
+            pt = np_left['pad_top']
+            pb = np_left['pad_bottom']
+            bub_h = max(pt + gh + pb,
+                        np_left['fixed_top'] + np_left['fixed_bottom'])
+            bub = nine_patch_scale(left_9, 420, bub_h, np_left)   # 宽=满幅420
+            # 粉框(内容区)在气泡内的映射位置 → 文字中心对准粉框中心
+            bx0, by0, bx1, by1 = map_rect_np(np_left, PINK_LEFT_BOX, 420, bub_h)
+            ccx = (bx0 + bx1) / 2.0
+            ccy = (by0 + by1) / 2.0
+            glyph_img = shop_text_img.crop(glyph)
+            bub.paste(glyph_img,
+                      (round(ccx - gw / 2.0), round(ccy - gh / 2.0)), glyph_img)
+            cw = Image.new('RGBA', (420, 174), (0, 0, 0, 0))
+            cw.paste(bub, (0, round((174 - bub_h) / 2.0)), bub)   # 纵向居中
+            shop_with_text = cw
 
     # Phase F: 引流位横幅
     if gradient_top is None:
@@ -785,17 +853,18 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
             tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
             bubble_w, bubble_h = 253, 176
-            pad_l, pad_r = np_left['pad_left'], np_left['pad_right']
-            pad_t, pad_b = np_left['pad_top'], np_left['pad_bottom']
-            content_w = bubble_w - pad_l - pad_r
-            content_h = bubble_h - pad_t - pad_b
 
             # 生成气泡
             bubble = nine_patch_scale(left_9, bubble_w, bubble_h, np_left)
 
-            # 文字居中在气泡内容区内
-            text_x = pad_l + (content_w - tw) // 2
-            text_y = pad_t + (content_h - th) // 2
+            # 红框（内容区）在气泡内的映射位置（按 04 参考粉框 PINK_LEFT_BOX）
+            bx0, by0, bx1, by1 = map_rect_np(np_left, PINK_LEFT_BOX, bubble_w, bubble_h)
+            ccx = (bx0 + bx1) / 2.0
+            ccy = (by0 + by1) / 2.0
+
+            # wz_3 文字中心放在内容框中心
+            text_x = round(ccx - tw / 2.0)
+            text_y = round(ccy - th / 2.0)
             bubble.paste(wz_3_text, (text_x, text_y), wz_3_text)
 
             # 渐变背景（上→下）
@@ -813,9 +882,9 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
                 arr[y, :, 3] = 255
             banner_img = Image.fromarray(arr)
 
-            # 气泡居中放在渐变背景上
-            bx = (366 - bubble_w) // 2
-            by = (204 - bubble_h) // 2
+            # 摆气泡使内容框中心对准画布中心 (183,102)，不再按气泡外框居中
+            bx = round(183 - ccx)
+            by = round(102 - ccy)
             banner_img.paste(bubble, (bx, by), bubble)
 
     return {
@@ -868,6 +937,10 @@ def main(text_color=None, tag_color=None, tag_bg_color=None,
     print("  → left_night.png / right_night.png (borderless)")
     imgs["商城6字展示420X174"].save(os.path.join(DIR_COVER, '商城6字展示420X174.png'))
     print("  → 商城6字展示420X174.png")
+    # 带文字的预览图，放输出根目录（zip 最外层，与 封面/效果 等文件夹同级）
+    imgs["商城6字展示420X174(预览)"].save(
+        os.path.join(OUTPUT_DIR, '商城6字展示420X174(预览).png'))
+    print("  → 商城6字展示420X174(预览).png")
     if imgs["引流位banner"]:
         imgs["引流位banner"].save(os.path.join(DIR_COVER, '引流位banner.png'))
         print("  → 引流位banner.png")

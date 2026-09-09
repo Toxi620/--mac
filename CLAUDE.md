@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **气泡预览图**: 聊天气泡颜色替换、点九拉伸、合成亮/暗双模式、商城展示图、引流位横幅
 - **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料
 - **商城动效 gif**: 在 5 张静态下新增「点赞动效」区 → 实时合成两张动效 `主页皮肤.gif` / `被赞动效.gif`（预览宽 360、导出全尺寸 1242），可调 点赞底部左/右、点赞文字色，上传 气泡框.gif / 皮肤封面.mp4 / 点赞.gif，导出 zip（两 gif + `db#<点赞文字色hex小写>.png`）。**mp4 解码与 gif 编码都依赖 ffmpeg/ffprobe**（打包时必须塞进 bundle）
-- **点九验证**: 严格按点九标准把 `left_.9.png` / `right_.9.png`（176×176）拉伸成左右气泡预览，**每行 10 个字、超出自动换行**（宽度固定约 10 字宽，高度随行数增长）；文字**全部左对齐**（靠内容区左边缘），恰好填满右/下边线标记的内容区、无额外留白，气泡 = 内容区 + 点九 padding，且不小于上/左拉伸区固定部分，用苹方字体绘制（文字内容、字号、文字色可调）。**只忠实复现点九结果，不做美化**
+- **气泡宣传**（原「点九验证」改名）: 左右气泡预览（`left_.9.png`/`right_.9.png`，176×176），**左右文案各自输入互不影响，回车才换行**（不做字数自动截断）。仿「商城6字展示(预览)」思路生成：气泡按文案包字（文字宽/高 + 点九 pad，不足用 `max(固定区下限)` 兜底），文字块在内容区内垂直居中，**左气泡靠左、右气泡靠右**，两侧各留 `PROMO_TEXT_INSET_X=14`，≥2 行时首/末行上下各加 `PROMO_TEXT_INSET_Y=8`；苹方（商城轮播同款 `fonts/PingFang.ttf`）；文字色**单向跟随气泡预览亮色文字色**（无独立取色器）。可导出 zip（全尺寸 `左气泡.png`/`右气泡.png`）。**不再保证严格点九复现**
 
 支持 macOS (GitHub Actions) 和 Windows (本地 PyInstaller) 单文件打包分发。
 
@@ -62,20 +62,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `POST /generate` 气泡预览缩略图；`POST /export` 导出气泡高清 ZIP
   - `POST /generate_carousel` 轮播预览；`POST /export_carousel` 导出商城物料 ZIP
   - `POST /generate_gif` 动效预览（全宽360 两 gif 一并返回）；`POST /export_gif` 导出 动效物料.zip（两 gif 全尺寸 + db#.png）
-  - `POST /generate_ninepatch` 点九验证预览（参数：文字/字号/文字色）
+  - `POST /generate_promo` 气泡宣传预览（参数：左文字/右文字/字号；文字色 = 气泡预览亮色文字色，前端单向传）；`POST /export_promo` 导出 气泡宣传.zip（左气泡.png + 右气泡.png 全尺寸）
   - `POST /upload_carousel` 轮播素材上传（name 白名单，含 头像挂件/方图/star/gua/主页皮肤/聊天头像 + 动效三样 气泡框.gif/皮肤封面.mp4/点赞.gif）；`POST /upload_bubble` 气泡素材上传（left/right/bg_0/bg_1）
   - `POST /shutdown` 关闭服务
 
-### 点九验证模块
+### 气泡宣传模块（原「点九验证」）
 
-`_generate_ninepatch()` + `/generate_ninepatch`：
+`_generate_promo(left_text, right_text, font_size, text_color)` + `/generate_promo` / `/export_promo`：
 
-- 源图 `left_.9.png` / `right_.9.png`（176×176，优先用户上传的 `USER_DATA_DIR`，回退 `WORK_DIR`）
-- `parse_nine_patch()` 读上/左拉伸区 + 右/下内容 padding → `nine_patch_scale()` 只拉伸标记区域
-- **气泡尺寸自动生成（严格点九，无额外留白）**：每行 `NINEPATCH_LINE_CHARS=10` 字、超出自动换行（按字符数切片）；行高 = `font.getmetrics()` 的 ascent+descent，行宽 = 各 line bbox 最大宽；内容区 = 文字尺寸（恰好填满），气泡 = 内容区 + pad_l/pad_r/pad_t/pad_b，并 `max(固定区最小尺寸)` 兜底（fixed_left+fixed_right / fixed_top+fixed_bottom）。**刻意不做留白美化，忠实复现点九结果，可能显得很挤**
-- 文字加载顺序：`WORK_DIR/fonts/PingFang.ttf` → `C:/Windows/Fonts/msyh.ttc` → 默认字体
-- 文字**全部左对齐**：每行 `draw.text((pad_left, 行中心y), ..., anchor="lm")`，紧贴内容区左边缘
-- 前端参数：文字内容/字号/文字色（左右气泡宽高不手调，随文字实时变化）
+- 源图 `left_.9.png` / `right_.9.png`（176×176，优先用户上传的 `USER_DATA_DIR`，回退 `WORK_DIR`）；`parse_nine_patch()` / `nine_patch_scale()` 做点九拉伸
+- **换行只在输入框手动回车处**（textarea 传 `\n`），不做字数自动截断
+- 生成仿「商城6字展示(预览)」：气泡 = 文字宽/高 + pad_l/r/t/b，`max(min_w/min_h)`（fixed 固定区）兜底；文字块在内容区内**垂直居中**
+- **左气泡左对齐**（锚点 `lm`）、**右气泡右对齐**（锚点 `rm`），文字距内容区左右缘各 `PROMO_TEXT_INSET_X=14`；≥2 行时首/末行上下各 `PROMO_TEXT_INSET_Y=8`
+- 苹方（商城轮播同款）：`WORK_DIR/fonts/PingFang.ttf` → `C:/Windows/Fonts/msyh.ttc` → 默认字体
+- 文字色 = 气泡预览「亮色文字色」（前端单向取值，无独立取色器，不会反向影响亮色文字色）
+- 前端左右各一个 textarea（npTextL/npTextR）+ 字号；导出按钮 → `/export_promo` zip（`左气泡.png`/`右气泡.png` 全尺寸）
 
 ### 前端 (templates/index.html)
 

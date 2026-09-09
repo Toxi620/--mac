@@ -151,7 +151,7 @@
     <div style="display:inline-flex;width:fit-content;border:1px solid #ddd;border-radius:8px;overflow:hidden">
       <button id="tabBubble" onclick="switchTab('bubble')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#007aff;color:#fff;font-weight:500;white-space:nowrap">🫧 气泡预览</button>
       <button id="tabCarousel" onclick="switchTab('carousel')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🛒 商城轮播</button>
-      <button id="tabNinepatch" onclick="switchTab('ninepatch')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🧪 点九验证</button>
+      <button id="tabNinepatch" onclick="switchTab('ninepatch')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🫧 气泡宣传</button>
     </div>
     <button onclick="doShutdown()" style="background:none;border:1px solid #ddd;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;color:#999">✕ 关闭</button>
   </div>
@@ -343,22 +343,21 @@
   <div class="previews" id="carouselGifPreviews" style="grid-template-columns:repeat(2,1fr);margin:6px auto 0;max-width:760px"></div>
 </div>
 
-<!-- ======== 点九验证面板 ======== -->
+<!-- ======== 气泡宣传面板 ======== -->
 <div id="ninepatchPanel" style="display:none">
   <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
-    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🧪 点九验证</span>
-    <div class="color-item">
-      <div class="color-label">
-        <span class="name">文字色</span>
-        <span class="hex" id="hexNpColor">#333333</span>
-      </div>
-      <input type="color" id="npColor" value="#333333">
-    </div>
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🫧 气泡宣传</span>
+    <span style="font-size:13px;color:#666">文字色跟随气泡预览「亮色文字色」：</span>
+    <span class="hex" id="hexNpColor" style="font-size:13px">#9f69c5</span>
   </div>
   <div class="toolbar">
-    <input type="text" id="npText" placeholder="输入文字…" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <span style="font-size:13px;color:#666">左气泡</span>
+    <textarea id="npTextL" rows="2" placeholder="左侧气泡文字…（回车换行）" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit"></textarea>
+    <span style="font-size:13px;color:#666">右气泡</span>
+    <textarea id="npTextR" rows="2" placeholder="右侧气泡文字…（回车换行）" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit"></textarea>
     <input type="number" id="npFontSize" value="36" min="8" max="200" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
     <label style="font-size:13px;color:#666">字号</label>
+    <button class="btn btn-primary" id="btnExportPromo" onclick="doExportPromo()">📥 导出</button>
   </div>
   <div class="status" id="ninepatchStatus">就绪</div>
   <div class="previews" id="ninepatchPreviews" style="grid-template-columns: repeat(2,1fr)"></div>
@@ -578,7 +577,7 @@ function switchTab(tab) {
       btn.style.background = '#f5f5f7'; btn.style.color = '#666';
     }
   }
-  // 切换到商城轮播 / 点九验证时立即刷新预览（保持原有行为）
+  // 切换到商城轮播 / 气泡宣传时立即刷新预览（保持原有行为）
   if (tab === 'carousel') {
     clearTimeout(carDebounce);
     carDebounce = null;
@@ -781,27 +780,30 @@ document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
 carEditText.addEventListener('input', () => { doCarouselPreview(); });
 document.getElementById('carFontSize').addEventListener('input', () => { doCarouselPreview(); });
 
-// ─── 点九验证 ──────────────────────────────────────────
-const npText = document.getElementById('npText');
+// ─── 气泡宣传 ──────────────────────────────────────────
+const npTextL = document.getElementById('npTextL');
+const npTextR = document.getElementById('npTextR');
 const npFontSize = document.getElementById('npFontSize');
-const npColor = document.getElementById('npColor');
 const hexNpColor = document.getElementById('hexNpColor');
 const ninepatchPreviews = document.getElementById('ninepatchPreviews');
 const ninepatchStatus = document.getElementById('ninepatchStatus');
+const btnExportPromo = document.getElementById('btnExportPromo');
 
 let npDebounce = null;
 
 function getNinepatchParams() {
   return {
-    文字: npText.value,
+    左文字: npTextL.value,
+    右文字: npTextR.value,
     字号: parseInt(npFontSize.value) || 36,
-    文字色: npColor.value,
+    // 文字色 = 气泡预览的「亮色文字色」（单向跟随，不改回来）
+    文字色: colorText.value,
   };
 }
 
 function _fetchNinepatch() {
   ninepatchStatus.innerHTML = '<span class="spinner"></span> 生成中...';
-  fetch('/generate_ninepatch', {
+  fetch('/generate_promo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(getNinepatchParams())
@@ -831,16 +833,44 @@ function doNinepatchPreview() {
   npDebounce = setTimeout(_fetchNinepatch, 300);
 }
 
-npText.addEventListener('input', doNinepatchPreview);
+function doExportPromo() {
+  if (btnExportPromo.disabled) return;
+  btnExportPromo.disabled = true;
+  ninepatchStatus.innerHTML = '<span class="spinner"></span> 导出中...';
+  fetch('/export_promo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getNinepatchParams())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '气泡宣传.zip';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    btnExportPromo.disabled = false;
+    ninepatchStatus.textContent = '✅ 导出完成';
+  })
+  .catch(err => {
+    btnExportPromo.disabled = false;
+    ninepatchStatus.textContent = '❌ ' + err.message;
+  });
+}
+
+npTextL.addEventListener('input', doNinepatchPreview);
+npTextR.addEventListener('input', doNinepatchPreview);
 npFontSize.addEventListener('input', doNinepatchPreview);
-npColor.addEventListener('input', () => {
-  hexNpColor.textContent = npColor.value;
-  doNinepatchPreview();
-});
 
 colorText.addEventListener('input', () => {
   if (darkAuto.text) colorTextDark.value = darkenHex(colorText.value);
   updateHex(); doPreview();
+  // 气泡宣传的文字色单向跟随亮色文字色
+  hexNpColor.textContent = colorText.value;
+  doNinepatchPreview();
 });
 colorTag.addEventListener('input', () => {
   if (darkAuto.tag) colorTagDark.value = darkenHex(colorTag.value);
