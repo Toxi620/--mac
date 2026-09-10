@@ -19,7 +19,29 @@ app = Flask(__name__)
 
 WORK_DIR = pipeline.WORK_DIR
 
+# UI 状态持久化：颜色/文字/字号等存到用户数据目录，重开网页恢复
+STATE_FILE = os.path.join(pipeline.USER_DATA_DIR, 'state.json')
+
 _build_version_cache = None
+
+
+def load_state() -> dict:
+    """读取上次的 UI 状态（失败返回空 dict）。"""
+    try:
+        with open(STATE_FILE, encoding='utf-8') as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def list_user_files() -> list:
+    """用户数据目录里已上传的素材文件名（前端用来标记「已上传」）。"""
+    try:
+        return sorted(f for f in os.listdir(pipeline.USER_DATA_DIR)
+                      if os.path.isfile(os.path.join(pipeline.USER_DATA_DIR, f)))
+    except Exception:
+        return []
 
 
 def get_build_version() -> str:
@@ -86,7 +108,31 @@ def get_colors() -> dict:
 
 @app.route("/")
 def index():
-    return render_template("index.html", colors=get_colors(), build_version=get_build_version())
+    return render_template("index.html", colors=get_colors(),
+                           state=load_state(), user_files=list_user_files(),
+                           build_version=get_build_version())
+
+
+@app.route("/state", methods=["GET"])
+def get_state():
+    """返回上次保存的 UI 状态 + 已上传素材清单。"""
+    return jsonify({"ok": True, "state": load_state(), "files": list_user_files()})
+
+
+@app.route("/state", methods=["POST"])
+def save_state():
+    """保存 UI 状态（前端每次改动去抖后调用）。"""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "无效数据"}), 400
+    try:
+        tmp = STATE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        os.replace(tmp, STATE_FILE)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/generate", methods=["POST"])

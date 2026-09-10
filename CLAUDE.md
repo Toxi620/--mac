@@ -57,8 +57,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 端口自动检测：5001 被占用时尝试 5002、5003...；**debug 重载用 `WALLPAPER_PORT` 环境变量记住端口，避免每次改代码重启后端口漂移**（reloader 子进程复用同一端口）
 - 打包版 `debug=False`，本地开发 `debug=True`
+- **UI 状态持久化**：存档在 `~/Documents/配色工具素材/state.json`（`STATE_FILE`）。`GET /` 把存档 + 已上传素材清单塞进模板（`state=` / `user_files=`）；前端每次改色/改字/切面板去抖 500ms `POST /state` 一份，重开网页颜色、编辑文字、气泡宣传文案、字号、「暗色是否跟随浅色」、上次停留的面板全部恢复；用户传过的素材按钮显示绿框「已上传」（素材本身一直存在 `USER_DATA_DIR`，本来就不会丢）
 - API 路由：
   - `GET /` 首页（渲染 index.html）
+  - `GET /state` 读存档 + 已上传素材清单；`POST /state` 保存存档（临时文件 + `os.replace` 原子写）
   - `POST /generate` 气泡预览缩略图；`POST /export` 导出气泡高清 ZIP
   - `POST /generate_carousel` 轮播预览；`POST /export_carousel` 导出商城物料 ZIP
   - `POST /generate_gif` 动效预览（全宽360 两 gif 一并返回）；`POST /export_gif` 导出 动效物料.zip（两 gif 全尺寸 + db#.png）
@@ -80,7 +82,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 前端 (templates/index.html)
 
-- **自定义取色面板**：点色块弹出面板，hex 输入为主（顶部大输入框 + 色相条 + 饱和度方块 + R/G/B 次级 + 完成按钮）；原生 `<input type="color">` 已隐藏——浏览器原生取色器默认显示 RGB，且无法用网页代码修改其显示格式
+- **自定义取色面板**：点色块弹出面板，hex 输入为主（顶部大输入框 + 色相条 + 饱和度方块 + R/G/B 次级 + 底部「💧 吸管 | 完成」）；原生 `<input type="color">` 已隐藏——浏览器原生取色器默认显示 RGB，且无法用网页代码修改其显示格式
+- **吸管取色**：优先 `window.EyeDropper`（Chrome/Edge，可吸整个屏幕）；不可用时回退 `getDisplayMedia` 截当前标签页 → 全屏 `<img id="cpEyeLayer">` 覆盖层点哪取哪（Firefox/Safari）。吸管激活时 `cpEyeOn` 会挡掉「点面板外关闭」、`body.cp-eyedrop` 全局十字光标；Esc 或再点按钮取消
 - 13 个颜色共用同一个取色面板，JS 自动为每个 `input[type=color]` 生成色块按钮（`.cp-swatch`）并同步颜色；改色通过给隐藏 input 派发 `input` 事件驱动原有监听（暗色自动跟随、实时预览）
 - **商城轮播页自上而下**：轮播色 grid（多 点赞底部颜色左/右/点赞文字色 3 项，色板自动生成）→ 编辑行 → 上传行 → `#carouselPreviews`（5 张静态）→ `#carouselGifPreviews`（2 列动效，inline `max-width:760px` 可调宽）；动效/上传/改色走 `doCarouselPreview()` → `scheduleCarouselGif()` 去抖调 `/generate_gif`（busy 锁防并发，预览全宽 360）
 
