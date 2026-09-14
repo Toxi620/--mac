@@ -669,6 +669,8 @@ const btnExportGif = document.getElementById('btnExportGif');
 let carDebounce = null;
 let carGifDebounce = null;
 let carGifBusy = false;
+// 生成中又来了新改动时先记下来，等这次跑完再补一次（否则改动会被静默丢掉）
+let carGifPending = false;
 
 // ─── 状态持久化：服务端 state.json（重开网页恢复上次的一切）───
 const INITIAL_STATE = {{ st|tojson }};
@@ -821,14 +823,15 @@ function doCarouselPreview() {
 }
 
 function scheduleCarouselGif() {
-  if (carGifBusy) return;
+  if (carGifBusy) { carGifPending = true; return; }   // 记下来，跑完补
   clearTimeout(carGifDebounce);
   carGifDebounce = setTimeout(fetchCarouselGif, 600);
 }
 
 function fetchCarouselGif() {
-  if (carGifBusy) return;
+  if (carGifBusy) { carGifPending = true; return; }
   carGifBusy = true;
+  carGifPending = false;
   carouselGifStatus.innerHTML = '<span class="spinner"></span> 动效生成中(全尺寸较慢)...';
   fetch('/generate_gif', {
     method: 'POST',
@@ -849,7 +852,10 @@ function fetchCarouselGif() {
     }
   })
   .catch(() => { carouselGifStatus.textContent = '❌ 动效请求失败'; })
-  .finally(() => { carGifBusy = false; });
+  .finally(() => {
+    carGifBusy = false;
+    if (carGifPending) { carGifPending = false; scheduleCarouselGif(); }  // 补跑期间漏掉的改动
+  });
 }
 
 function doExportCarouselGif() {

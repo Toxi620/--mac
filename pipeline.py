@@ -555,17 +555,22 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
     def img3():
         # 底图换为需求新素材"图层 1086.png"
         bg = apply_base(load_src('图层 1086.png'))
-        bg = paste_at(bg, load_color('评论气泡底色2.png', bubble_bg_color), 171, 570)
-        bg = paste_at(bg, load_color('评论气泡底色1.png', bubble_bg_color), 413, 1087)
-        bg = paste_at(bg, load_color('评论气泡-我也想要！.png', want_color), 446, 1115)
-        gua = load_user('gua#ff5582.png')
-        bg = paste_at(bg, gua, 505, 616, 139, 54)
-        bg = paste_at(bg, gua, 639, 1145)
-        # 需求新增，严格照 txt 顺序自下而上贴（会有遮挡属预期）
+        # 需求新增，严格照 txt 顺序自下而上贴
         bg = paste_avatar(bg, 40, 1074, 116)
         bg = paste_at(bg, load_src('评论放大.png'), 0, 774)
         bg = paste_avatar(bg, 212, 998, 170)
         bg = paste_at(bg, load_src('图层 1088.png'), 319, 1106)
+        # 评论气泡底色要压在「评论放大」之上（它的不透明区 y969..1258 会盖掉
+        # y1087 的底色1），但要垫在「我也想要」和气泡装饰之下。
+        bg = paste_at(bg, load_color('评论气泡底色2.png', bubble_bg_color), 171, 570)
+        bg = paste_at(bg, load_color('评论气泡底色1.png', bubble_bg_color), 413, 1087)
+        # 「我也想要」+ 气泡装饰必须压在最顶：
+        # 评论放大.png 的不透明区在 y969..1258，贴在 (0,774) 会把 y1115 的文字
+        # 和 y1145 的装饰盖掉，所以这两样放到新增组件之后再贴。
+        gua = load_user('gua#ff5582.png')
+        bg = paste_at(bg, gua, 505, 616, 139, 54)
+        bg = paste_at(bg, gua, 639, 1145)
+        bg = paste_at(bg, load_color('评论气泡-我也想要！.png', want_color), 446, 1115)
         bg = paste_at(bg, load_color('3.png', text_color), 507, 2120)
         return bg
     result['评论气泡.png'] = make_with_text(img3)
