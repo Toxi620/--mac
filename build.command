@@ -27,7 +27,9 @@ fi
 
 echo "=== 1/6 复制系统字体 ==="
 mkdir -p fonts
-ls fonts/PingFang.ttf 2>/dev/null && echo "  ✅ fonts/PingFang.ttf exists" || echo "  ⚠️ fonts/PingFang.ttf not found"
+for f in PingFang.ttf NotoSansSC-Light.ttf NotoSans-Light.ttf Roboto-Regular.ttf; do
+  if [ -f "fonts/$f" ]; then echo "  ✅ fonts/$f"; else echo "  ⚠️ fonts/$f 缺失（对应字体链会回退）"; fi
+done
 
 echo "=== 写入构建版本 (commit) ==="
 git rev-parse --short HEAD > version.txt 2>/dev/null || echo "dev" > version.txt

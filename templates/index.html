@@ -65,6 +65,15 @@
   .upload-group label:hover { border-color: #007aff; color: #007aff; }
   .upload-group input[type="file"] { display: none; }
 
+  /* 气泡宣传专用的素材上传按钮 */
+  .promo-upload {
+    font-size: 13px; color: #666; cursor: pointer;
+    padding: 6px 14px; border: 1px dashed #aaa; border-radius: 6px;
+  }
+  .promo-upload:hover { border-color: #007aff; color: #007aff; }
+  .promo-upload input[type="file"] { display: none; }
+  .promo-upload.has-file { border-style: solid; border-color: #34c759; color: #34c759; font-weight: 500; }
+
   .status {
     font-size: 13px; color: #999; padding: 6px 0 12px;
   }
@@ -354,20 +363,79 @@
 <div id="ninepatchPanel" style="display:none">
   <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🫧 气泡宣传</span>
-    <span style="font-size:13px;color:#666">文字色跟随气泡预览「亮色文字色」：</span>
-    <span class="hex" id="hexNpColor" style="font-size:13px">#9f69c5</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">文字色</span>
+        <span class="hex" id="hexNpColor">{{ colors.文字色 }}</span>
+      </div>
+      <input type="color" id="colorNpText" value="{{ st.get('宣传文字色') or colors.文字色 }}">
+    </div>
+    <span style="font-size:12px;color:#999">（安卓/IOS 共用，不再跟随气泡预览）</span>
+  </div>
+  <!-- 气泡素材上传（安卓/IOS 共用一张 176×176 带 1px 黑边的图） -->
+  <div class="toolbar" style="margin-bottom:8px;align-items:center;gap:10px">
+    <span style="font-size:13px;color:#666">气泡素材（安卓/IOS 共用）：</span>
+    <label class="promo-upload" data-promo-side="left">⬆ 左气泡图
+      <input type="file" accept=".png" onchange="uploadPromoBubble('left', this)"></label>
+    <label class="promo-upload" data-promo-side="right">⬆ 右气泡图
+      <input type="file" accept=".png" onchange="uploadPromoBubble('right', this)"></label>
+    <span style="font-size:12px;color:#999">传 176×176 带 1px 黑边的点九图；IOS 会自动去边框</span>
   </div>
   <div class="toolbar">
     <span style="font-size:13px;color:#666">左气泡</span>
     <textarea id="npTextL" rows="2" placeholder="左侧气泡文字…（回车换行）" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit">{{ st.get('左文字') or '' }}</textarea>
     <span style="font-size:13px;color:#666">右气泡</span>
     <textarea id="npTextR" rows="2" placeholder="右侧气泡文字…（回车换行）" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit">{{ st.get('右文字') or '' }}</textarea>
-    <input type="number" id="npFontSize" value="{{ st.get('字号') or 36 }}" min="8" max="200" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+    <input type="number" id="npFontSize" value="{{ st.get('字号') or 50 }}" min="8" max="200" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
     <label style="font-size:13px;color:#666">字号</label>
     <button class="btn btn-primary" id="btnExportPromo" onclick="doExportPromo()">📥 导出</button>
   </div>
   <div class="status" id="ninepatchStatus">就绪</div>
   <div class="previews" id="ninepatchPreviews" style="grid-template-columns: repeat(2,1fr)"></div>
+
+  <!-- ======== IOS 气泡（同页下方，独立一套） ======== -->
+  <div style="margin-top:26px;padding-top:18px;border-top:2px dashed #e0e0e5">
+    <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">📱 IOS 气泡</span>
+      <span style="font-size:12px;color:#999">素材与文字色同上方「气泡宣传」，点九逻辑独立</span>
+    </div>
+    <div class="toolbar">
+      <span style="font-size:13px;color:#666">左气泡</span>
+      <textarea id="npTextLIos" rows="2" placeholder="IOS 左侧气泡文字…（回车换行）" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit">{{ st.get('IOS左文字') or '' }}</textarea>
+      <span style="font-size:13px;color:#666">右气泡</span>
+      <textarea id="npTextRIos" rows="2" placeholder="IOS 右侧气泡文字…（回车换行）" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit">{{ st.get('IOS右文字') or '' }}</textarea>
+      <input type="number" id="npFontSizeIos" value="{{ st.get('IOS字号') or 50 }}" min="8" max="200" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+      <label style="font-size:13px;color:#666">字号</label>
+      <button class="btn btn-primary" id="btnExportPromoIos" onclick="doExportPromoIos()">📥 导出</button>
+    </div>
+    <div class="status" id="ninepatchStatusIos">就绪</div>
+    <div class="previews" id="ninepatchPreviewsIos" style="grid-template-columns: repeat(2,1fr)"></div>
+  </div>
+
+  <!-- ======== 气泡预览图（470×470 画板） ======== -->
+  <div style="margin-top:26px;padding-top:18px;border-top:2px dashed #e0e0e5">
+    <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🖼 气泡预览图</span>
+      <span style="font-size:12px;color:#999">470×470 画板 · 气泡沿用上方素材（缩至168起）· iOS 点九逻辑 · 苹方 38</span>
+    </div>
+    <div class="toolbar" style="margin-bottom:8px;align-items:center;gap:10px">
+      <span style="font-size:13px;color:#666">背景：</span>
+      <label class="promo-upload" data-preview-bg>⬆ 上传背景
+        <input type="file" accept=".png,.jpg,.jpeg" onchange="uploadPreviewBg(this)"></label>
+      <span style="font-size:12px;color:#999">没上传就是白底；上传图会自动缩放到 470×470</span>
+    </div>
+    <div class="toolbar">
+      <span style="font-size:13px;color:#666">左气泡</span>
+      <textarea id="pvTextL" rows="2" placeholder="左侧气泡文字…" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit">{{ st.get('预览图左文字') or '' }}</textarea>
+      <span style="font-size:13px;color:#666">右气泡</span>
+      <textarea id="pvTextR" rows="2" placeholder="右侧气泡文字…" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:120px;resize:vertical;font-family:inherit">{{ st.get('预览图右文字') or '' }}</textarea>
+      <input type="number" id="pvFontSize" value="{{ st.get('预览图字号') or 38 }}" min="8" max="200" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+      <label style="font-size:13px;color:#666">字号</label>
+      <button class="btn btn-primary" id="btnExportPreview" onclick="doExportBubblePreview()">📥 导出</button>
+    </div>
+    <div class="status" id="previewStatus">就绪</div>
+    <div class="previews" id="bubblePreviewBox" style="grid-template-columns: 470px"></div>
+  </div>
 </div>
 
 <div class="app-version">build: {{ build_version }}</div>
@@ -419,7 +487,7 @@ function updateHex() {
   hexGradTop.textContent = colorGradTop.value;
   hexGradBot.textContent = colorGradBot.value;
   // 气泡宣传的文字色单向跟随亮色文字色
-  hexNpColor.textContent = colorText.value;
+  hexNpColor.textContent = colorNpText.value;
   syncSwatches();
 }
 
@@ -545,6 +613,33 @@ function uploadBubble(side, input) {
   input.value = '';
 }
 
+// 气泡宣传专用：一份图同时供安卓 / IOS 使用（后端会把 iOS 那份自动去边框）
+function uploadPromoBubble(side, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('side', side);
+  form.append('file', file);
+  const label = input.closest('label');
+  ninepatchStatus.textContent = `⏳ 上传${side === 'left' ? '左' : '右'}气泡图...`;
+  fetch('/upload_promo_bubble', { method: 'POST', body: form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        ninepatchStatus.textContent =
+          `✅ 已更新（${data.size.join('×')}），安卓 / IOS / 气泡预览图 刷新中...`;
+        if (label) label.classList.add('has-file');
+        doNinepatchPreview();      // 安卓那套
+        doNinepatchPreviewIos();   // IOS 那套
+        doBubblePreview();         // 气泡预览图（也用这套素材）
+      } else {
+        ninepatchStatus.textContent = '❌ ' + (data.error || '上传失败');
+      }
+    })
+    .catch(() => { ninepatchStatus.textContent = '❌ 上传请求失败'; });
+  input.value = '';
+}
+
 // ─── 商城轮播图 ──────────────────────────────────────────
 
 const carText = document.getElementById('carText');
@@ -579,6 +674,10 @@ let carGifBusy = false;
 const INITIAL_STATE = {{ st|tojson }};
 const UPLOADED_FILES = {{ user_files|tojson }};
 let currentTab = INITIAL_STATE['当前面板'] || 'bubble';
+// 去抖计时器必须在 switchTab 之前声明：switchTab 会 clearTimeout 它们，
+// 而 let 有 TDZ —— 声明在后面的话，进页面时切到「气泡宣传」会直接抛
+// ReferenceError，整个初始化中断、预览不渲染（要动一下输入框才出来）。
+let npDebounce = null;
 
 function markUploaded(name) {
   const lb = document.querySelector('label[data-upload-file="' + name + '"]');
@@ -592,9 +691,22 @@ function markUploadedFiles() {
 }
 
 function collectState() {
-  return Object.assign({}, getColors(), getCarouselColors(), getNinepatchParams(), {
+  // 注意：不要直接把 getNinepatchParams() 整个 merge 进来 —— 它里面的「文字色」
+  // 是气泡宣传自己的取色器，会把 getColors() 的「文字色」（气泡预览的）覆盖掉。
+  // 所以这里逐项写，气泡宣传的文字色用独立键「宣传文字色」。
+  return Object.assign({}, getColors(), getCarouselColors(), {
+    左文字: npTextL.value,
+    右文字: npTextR.value,
+    字号: parseInt(npFontSize.value) || 50,
+    宣传文字色: colorNpText.value,
     编辑字号: parseInt(carFontSize.value) || 36,
-    字号: parseInt(npFontSize.value) || 36,
+    // IOS 那一套（前缀 IOS 存，避免跟安卓的「左文字/右文字」撞名）
+    IOS左文字: npTextLIos.value,
+    IOS右文字: npTextRIos.value,
+    IOS字号: parseInt(npFontSizeIos.value) || 50,
+    预览图左文字: pvTextL.value,
+    预览图右文字: pvTextR.value,
+    预览图字号: parseInt(pvFontSize.value) || 38,
     darkAuto: darkAuto,
     当前面板: currentTab,
   });
@@ -626,7 +738,7 @@ function switchTab(tab) {
       btn.style.background = '#f5f5f7'; btn.style.color = '#666';
     }
   }
-  // 切换到商城轮播 / 气泡宣传时立即刷新预览（保持原有行为）
+  // 切到任一标签页都立即刷新它的预览（三个页都要，别漏 bubble）
   if (tab === 'carousel') {
     clearTimeout(carDebounce);
     carDebounce = null;
@@ -636,6 +748,10 @@ function switchTab(tab) {
     clearTimeout(npDebounce);
     npDebounce = null;
     _fetchNinepatch();
+  } else if (tab === 'bubble') {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+    doPreview();
   }
 }
 
@@ -835,19 +951,18 @@ const npTextL = document.getElementById('npTextL');
 const npTextR = document.getElementById('npTextR');
 const npFontSize = document.getElementById('npFontSize');
 const hexNpColor = document.getElementById('hexNpColor');
+const colorNpText = document.getElementById('colorNpText');
 const ninepatchPreviews = document.getElementById('ninepatchPreviews');
 const ninepatchStatus = document.getElementById('ninepatchStatus');
 const btnExportPromo = document.getElementById('btnExportPromo');
-
-let npDebounce = null;
 
 function getNinepatchParams() {
   return {
     左文字: npTextL.value,
     右文字: npTextR.value,
-    字号: parseInt(npFontSize.value) || 36,
-    // 文字色 = 气泡预览的「亮色文字色」（单向跟随，不改回来）
-    文字色: colorText.value,
+    字号: parseInt(npFontSize.value) || 50,
+    // 文字色 = 气泡宣传自己的取色器（安卓/IOS 共用，不跟气泡预览联动）
+    文字色: colorNpText.value,
   };
 }
 
@@ -915,12 +1030,201 @@ npTextL.addEventListener('input', doNinepatchPreview);
 npTextR.addEventListener('input', doNinepatchPreview);
 npFontSize.addEventListener('input', doNinepatchPreview);
 
+// ─── IOS 气泡（跟安卓同一套逻辑，只多带 ios:true）──────────
+const npTextLIos = document.getElementById('npTextLIos');
+const npTextRIos = document.getElementById('npTextRIos');
+const npFontSizeIos = document.getElementById('npFontSizeIos');
+const ninepatchPreviewsIos = document.getElementById('ninepatchPreviewsIos');
+const ninepatchStatusIos = document.getElementById('ninepatchStatusIos');
+const btnExportPromoIos = document.getElementById('btnExportPromoIos');
+
+let npDebounceIos = null;
+
+function getNinepatchParamsIos() {
+  return {
+    左文字: npTextLIos.value,
+    右文字: npTextRIos.value,
+    字号: parseInt(npFontSizeIos.value) || 50,
+    文字色: colorNpText.value,
+    ios: true,
+  };
+}
+
+function _fetchNinepatchIos() {
+  ninepatchStatusIos.innerHTML = '<span class="spinner"></span> 生成中...';
+  fetch('/generate_promo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getNinepatchParamsIos())
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      ninepatchStatusIos.textContent = '✅ 预览已更新';
+      let html = '';
+      for (const name of ['左侧气泡', '右侧气泡']) {
+        const url = data.previews[name];
+        if (!url) continue;
+        html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+      }
+      ninepatchPreviewsIos.innerHTML = html;
+    } else {
+      ninepatchStatusIos.textContent = '❌ ' + (data.error || '生成失败');
+    }
+  })
+  .catch(() => { ninepatchStatusIos.textContent = '❌ 请求失败'; });
+}
+
+function doNinepatchPreviewIos() {
+  clearTimeout(npDebounceIos);
+  npDebounceIos = setTimeout(_fetchNinepatchIos, 300);
+}
+
+function doExportPromoIos() {
+  if (btnExportPromoIos.disabled) return;
+  btnExportPromoIos.disabled = true;
+  ninepatchStatusIos.innerHTML = '<span class="spinner"></span> 导出中...';
+  fetch('/export_promo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getNinepatchParamsIos())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '气泡宣传IOS.zip';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    btnExportPromoIos.disabled = false;
+    ninepatchStatusIos.textContent = '✅ 导出完成';
+  })
+  .catch(err => {
+    btnExportPromoIos.disabled = false;
+    ninepatchStatusIos.textContent = '❌ ' + err.message;
+  });
+}
+
+npTextLIos.addEventListener('input', doNinepatchPreviewIos);
+npTextRIos.addEventListener('input', doNinepatchPreviewIos);
+npFontSizeIos.addEventListener('input', doNinepatchPreviewIos);
+
+// ─── 气泡预览图（470×470 画板）──────────────────────────
+const pvTextL = document.getElementById('pvTextL');
+const pvTextR = document.getElementById('pvTextR');
+const pvFontSize = document.getElementById('pvFontSize');
+const bubblePreviewBox = document.getElementById('bubblePreviewBox');
+const previewStatus = document.getElementById('previewStatus');
+const btnExportPreview = document.getElementById('btnExportPreview');
+
+let pvDebounce = null;
+
+function getPreviewParams() {
+  return {
+    左文字: pvTextL.value,
+    右文字: pvTextR.value,
+    字号: parseInt(pvFontSize.value) || 38,
+    文字色: colorNpText.value,
+  };
+}
+
+function _fetchBubblePreview() {
+  previewStatus.innerHTML = '<span class="spinner"></span> 生成中...';
+  fetch('/generate_bubble_preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getPreviewParams())
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      previewStatus.textContent = '✅ 预览已更新';
+      bubblePreviewBox.innerHTML =
+        `<div class="preview-card"><img src="${data.preview}" style="width:470px;max-width:100%"></div>`;
+    } else {
+      previewStatus.textContent = '❌ ' + (data.error || '生成失败');
+    }
+  })
+  .catch(() => { previewStatus.textContent = '❌ 请求失败'; });
+}
+
+function doBubblePreview() {
+  clearTimeout(pvDebounce);
+  pvDebounce = setTimeout(_fetchBubblePreview, 300);
+}
+
+function doExportBubblePreview() {
+  if (btnExportPreview.disabled) return;
+  btnExportPreview.disabled = true;
+  previewStatus.innerHTML = '<span class="spinner"></span> 导出中...';
+  fetch('/export_bubble_preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getPreviewParams())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '气泡预览图.png';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    btnExportPreview.disabled = false;
+    previewStatus.textContent = '✅ 导出完成';
+  })
+  .catch(err => {
+    btnExportPreview.disabled = false;
+    previewStatus.textContent = '❌ ' + err.message;
+  });
+}
+
+function uploadPreviewBg(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  const label = input.closest('label');
+  previewStatus.textContent = '⏳ 上传背景...';
+  fetch('/upload_preview_bg', { method: 'POST', body: form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        previewStatus.textContent = `✅ 背景已更新（${data.size.join('×')}），刷新预览...`;
+        if (label) label.classList.add('has-file');
+        doBubblePreview();
+      } else {
+        previewStatus.textContent = '❌ ' + (data.error || '上传失败');
+      }
+    })
+    .catch(() => { previewStatus.textContent = '❌ 上传请求失败'; });
+  input.value = '';
+}
+
+pvTextL.addEventListener('input', doBubblePreview);
+pvTextR.addEventListener('input', doBubblePreview);
+pvFontSize.addEventListener('input', doBubblePreview);
+
+// 气泡宣传的文字色（安卓/IOS 共用）：改色后两套预览一起刷
+colorNpText.addEventListener('input', () => {
+  hexNpColor.textContent = colorNpText.value;
+  syncSwatches();
+  doNinepatchPreview();
+  doNinepatchPreviewIos();
+  doBubblePreview();
+});
+
 colorText.addEventListener('input', () => {
   if (darkAuto.text) colorTextDark.value = darkenHex(colorText.value);
   updateHex(); doPreview();
   // 气泡宣传的文字色单向跟随亮色文字色
-  hexNpColor.textContent = colorText.value;
   doNinepatchPreview();
+  doNinepatchPreviewIos();
 });
 colorTag.addEventListener('input', () => {
   if (darkAuto.tag) colorTagDark.value = darkenHex(colorTag.value);
@@ -961,10 +1265,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (darkAuto.bg) colorBgDark.value = darkenHex(colorBg.value);
   updateHex();
   updateCarouselHex();  // 同步气泡底框预置高亮
+  // 气泡宣传的文字色：hex 显示同步 + 色块颜色同步（值本身已由 Jinja 灌进 input）
+  hexNpColor.textContent = colorNpText.value;
+  syncSwatches();
   markUploadedFiles();
   // 恢复上次停留的面板（切过去会自动生成该面板的预览）
   if (currentTab && currentTab !== 'bubble') switchTab(currentTab);
   else doPreview();
+  // IOS / 气泡预览图 面板始终在气泡宣传页里，进页面各刷一次
+  doNinepatchPreviewIos();
+  doBubblePreview();
 });
 
 // 任何输入改动 → 去抖存盘（捕获阶段，覆盖所有 input/select/textarea）

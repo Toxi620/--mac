@@ -9,7 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **气泡预览图**: 聊天气泡颜色替换、点九拉伸、合成亮/暗双模式、商城展示图、引流位横幅
 - **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料
 - **商城动效 gif**: 在 5 张静态下新增「点赞动效」区 → 实时合成两张动效 `主页皮肤.gif` / `被赞动效.gif`（预览宽 360、导出全尺寸 1242），可调 点赞底部左/右、点赞文字色，上传 气泡框.gif / 皮肤封面.mp4 / 点赞.gif，导出 zip（两 gif + `db#<点赞文字色hex小写>.png`）。**mp4 解码与 gif 编码都依赖 ffmpeg/ffprobe**（打包时必须塞进 bundle）
-- **气泡宣传**（原「点九验证」改名）: 左右气泡预览（`left_.9.png`/`right_.9.png`，176×176），**左右文案各自输入互不影响，回车才换行**（不做字数自动截断）。仿「商城6字展示(预览)」思路生成：气泡按文案包字（文字宽/高 + 点九 pad，不足用 `max(固定区下限)` 兜底），文字块在内容区内垂直居中，**左气泡靠左、右气泡靠右**，两侧各留 `PROMO_TEXT_INSET_X=14`，≥2 行时首/末行上下各加 `PROMO_TEXT_INSET_Y=8`；苹方（商城轮播同款 `fonts/PingFang.ttf`）；文字色**单向跟随气泡预览亮色文字色**（无独立取色器）。可导出 zip（全尺寸 `左气泡.png`/`右气泡.png`）。**不再保证严格点九复现**
+- **气泡预览图**: 470×470 画板，背景可上传；左右气泡沿用宣传素材（缩到 168 起），左气泡左上角 (72,90) 向右延长、右气泡右上角 (392,230) 向左延长；走 **iOS 点九逻辑**，文字竖直居中、苹方默认 38，可导出 PNG
+- **气泡宣传**（原「点九验证」改名）: 分 **安卓 / IOS 两套**预览（同一页上下两组，素材共用、点九逻辑独立）。安卓读 `left_.9.png`/`right_.9.png`（176×176 带黑边，**已冻结**），IOS 读同一份并自动去 1px 边框。**左右文案各自输入互不影响**，手动回车换行、超长自动折行（`#1234567`/纯数字整串不拆、英文按空格、中文逐字、带标点禁则）。安卓留白从**点九黑线框**往里量（右 左45\|30 / 右45\|25 / 上22 下28\|32；左 左63\|43 / 右35\|25），最宽 776；IOS 用**绝对坐标**（拉伸区第82格/第106格、文字区 左75右45 上63下68、最宽 905），并按**字形**对齐、不拉伸时文字居中。有独立取色器（不再跟随气泡预览）。可导出 zip（全尺寸 `左气泡.png` / `右气泡.png`）
 
 支持 macOS (GitHub Actions) 和 Windows (本地 PyInstaller) 单文件打包分发。
 
@@ -22,7 +23,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `templates/index.html` | 前端：导航栏、16+ 颜色选择器、字号输入 |
 | `build.command` | macOS 打包脚本（含字体复制） |
 | `build.bat` | Windows 打包脚本 |
-| `fonts/PingFang.ttf` | 打包进应用的苹方字体（10.5MB，来自 GitHub） |
+| `fonts/NotoSansSC-Light.ttf` | **气泡宣传中文**用的开源字体（10.1MB，SIL OFL，从 Google Fonts 可变字体抽 wght=300） |
+| `fonts/NotoSans-Light.ttf` | **气泡宣传英文/数字**用的开源字体（632KB，SIL OFL，同上一族） |
+| `fonts/Roboto-Regular.ttf` | 西文兜底（Apache 2.0） |
+| `fonts/PingFang.ttf` | 苹方（10.5MB，iOS 那套 + 气泡预览图用） |
 | `原素材/` | 商城轮播图素材（改颜色的/、塞进去替换的/） |
 
 ## 仓库与发布
@@ -64,21 +68,76 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `POST /generate` 气泡预览缩略图；`POST /export` 导出气泡高清 ZIP
   - `POST /generate_carousel` 轮播预览；`POST /export_carousel` 导出商城物料 ZIP
   - `POST /generate_gif` 动效预览（全宽360 两 gif 一并返回）；`POST /export_gif` 导出 动效物料.zip（两 gif 全尺寸 + db#.png）
-  - `POST /generate_promo` 气泡宣传预览（参数：左文字/右文字/字号；文字色 = 气泡预览亮色文字色，前端单向传）；`POST /export_promo` 导出 气泡宣传.zip（左气泡.png + 右气泡.png 全尺寸）
+  - `POST /generate_promo` 气泡宣传预览（参数：左文字/右文字/字号/文字色/**ios**；`ios=true` 走 IOS 那套逻辑）；`POST /export_promo` 导出 zip（`气泡宣传.zip` / `气泡宣传IOS.zip`，IOS 的图名带 `_IOS`）
   - `POST /upload_carousel` 轮播素材上传（name 白名单，含 头像挂件/方图/star/gua/主页皮肤/聊天头像 + 动效三样 气泡框.gif/皮肤封面.mp4/点赞.gif）；`POST /upload_bubble` 气泡素材上传（left/right/bg_0/bg_1）
+  - `POST /upload_promo_bubble` **气泡宣传专用**素材上传（side=left/right）：传 176×176 带黑边的图 → 写 3 份：`<side>_.9.png`（安卓+iOS+气泡预览图 共用）、`<side>_ios.png`（兼容旧路径）、`<side>_promo_src.png`（原图备份）；非 176 的按无边框处理，安卓那份自动补 1px 透明边框。返回 `thumb`(base64) 供前端回显
+  - `POST /generate_bubble_preview` 气泡预览图预览（参数：左文字/右文字/字号/文字色）→ 返回 `preview`(base64)
+  - `POST /export_bubble_preview` 导出 470×470 全尺寸 PNG（`气泡预览图.png`）
+  - `POST /upload_preview_bg` 气泡预览图背景上传（PNG/JPG 都行，合成时缩放到 470×470）
   - `POST /shutdown` 关闭服务
+- **本地开发禁缓存**：`after_request` 钩子在非 frozen 时给所有响应加 `Cache-Control: no-store` 等头，避免改了模板刷新看不到变化（打包版不加）
 
 ### 气泡宣传模块（原「点九验证」）
 
-`_generate_promo(left_text, right_text, font_size, text_color)` + `/generate_promo` / `/export_promo`：
+`_generate_promo(left_text, right_text, font_size, text_color, ios=False)`，两套预览素材与点九逻辑各自独立：
 
-- 源图 `left_.9.png` / `right_.9.png`（176×176，优先用户上传的 `USER_DATA_DIR`，回退 `WORK_DIR`）；`parse_nine_patch()` / `nine_patch_scale()` 做点九拉伸
-- **换行只在输入框手动回车处**（textarea 传 `\n`），不做字数自动截断
-- 生成仿「商城6字展示(预览)」：气泡 = 文字宽/高 + pad_l/r/t/b，`max(min_w/min_h)`（fixed 固定区）兜底；文字块在内容区内**垂直居中**
-- **左气泡左对齐**（锚点 `lm`）、**右气泡右对齐**（锚点 `rm`），文字距内容区左右缘各 `PROMO_TEXT_INSET_X=14`；≥2 行时首/末行上下各 `PROMO_TEXT_INSET_Y=8`
-- 苹方（商城轮播同款）：`WORK_DIR/fonts/PingFang.ttf` → `C:/Windows/Fonts/msyh.ttc` → 默认字体
-- 文字色 = 气泡预览「亮色文字色」（前端单向取值，无独立取色器，不会反向影响亮色文字色）
-- 前端左右各一个 textarea（npTextL/npTextR）+ 字号；导出按钮 → `/export_promo` zip（`左气泡.png`/`右气泡.png` 全尺寸）
+- **安卓**（`ios=False`）：`left_.9.png` / `right_.9.png`（176×176 带 1px 黑边）。**已冻结，不再修改**。
+- **IOS**（`ios=True`）：读**同一份** `left_.9.png` / `right_.9.png`，`load_9()` 里自动 `crop(1,1,175,175)` 去掉那 1px 黑边 → 内部 174×174。
+
+公共部分（两套共用）：
+
+- **换行**：手动回车（`\n`）优先；超长再自动折行。折行规则（`wrap_to_width` + `_tokens`）：
+  - **原子串整体不拆**：`#1234567`（`#`/`@`/`$` + 字母数字）和纯数字串整体移到下一行；自身超宽才退化成逐字拆
+  - 英文单词优先在空格处断（带回退，不劈单词），中文逐字断
+  - **标点禁则**：`，。！？` 等不置行首（跟前一字一起带到下行）、`（「` 等不置行末（推到下行）——`PROMO_NO_LINE_START` / `PROMO_NO_LINE_END`
+- **字体**：安卓 = 中文 **Noto Sans SC Light** + 英文数字 **Noto Sans Light**（都是开源，见「字体体系」节）；**iOS = 中英文都用苹方**(`PingFang.ttf`)。逐字符按所属字体渲染，两端一致
+- **字号**：安卓默认 `PROMO_FONT_SIZE`=50，iOS 默认 `PROMO_IOS_FONT_SIZE`=50（各自独立）
+- **字间距**：安卓 `PROMO_LETTER_SPACING`=1，iOS `PROMO_IOS_LETTER_SPACING`=0
+- **行高**：`PROMO_LINE_H_RATIO`=0.9014（行高 = 字体自然行高 × 系数）
+- 文字色 = 气泡宣传自己的取色器（`colorNpText`，**不再跟随气泡预览**），安卓/iOS 共用
+- 导出 → zip（`气泡宣传.zip` / `气泡宣传IOS.zip`，图名带 `_IOS` 后缀）
+
+**安卓留白（已冻结）**——基准 = 点九**黑线框**，往里缩固定 px：
+
+| | 左留白（不拉伸 \| 拉伸） | 右留白（不换行 \| 换行） | 上 | 下（不换行 \| 换行） |
+|---|---|---|---|---|
+| 右气泡 | `PROMO_INSET_L`=45 \| `_STRETCH`=30 | `PROMO_INSET_R`=45 \| `_WRAP`=25 | `PROMO_INSET_T`=22 | `PROMO_INSET_B`=28 \| `_WRAP`=32 |
+| 左气泡 | `PROMO_L_INSET_L`=63 \| `_STRETCH`=43 | `PROMO_L_INSET_R`=35 \| `_WRAP`=25 | `PROMO_L_INSET_T`=22 | `PROMO_L_INSET_B`=28 \| `_WRAP`=32 |
+
+- `edge_l = bb_l + 左留白`、`edge_r = 内部宽−bb_r + 右留白`
+- 「拉伸/不拉伸」判据：文字宽 > `PROMO_STRETCH_TEXT_W`=65px
+- **折行上限 = 整个气泡总宽** `PROMO_MAX_BUBBLE_W`=776（含 1px 黑边）：可用文字宽 = `776 − edge_l − edge_r`；折行时气泡直接拉到 776
+- **右侧退让**：先用「不换行档」，放不下退让到「换行档」，仍放不下才真折行
+- 下限 = 素材本身 176×176（单字不压缩）
+- 文字**一律左对齐**到内容框左缘
+
+**IOS 规格**（绝对坐标写死，不分档、不退让）：
+
+| 项 | 值 | 常量 |
+|---|---|---|
+| 纵向拉伸区 | 上往下第 **82** 格（1px） | `PROMO_IOS_STRETCH_Y` |
+| 横向拉伸区 | 右气泡 左往右第 **106** 格；左气泡镜像 右往左第 **106** 格 | `PROMO_IOS_STRETCH_X` / `PROMO_IOS_L_STRETCH_X`=71 |
+| 文字区 | 右气泡 左 **75** / 右 **45**；左气泡镜像 左 **45** / 右 **75** | `PROMO_IOS_TEXT_L` / `_R` |
+| 上下留白 | 上 **63** / 下 **68** | `PROMO_IOS_TEXT_T` / `_B` |
+| 最宽（含黑边） | **905** | `PROMO_IOS_MAX_W` |
+
+- 拉伸区格号是**带 1px 黑边的文件**上的 1-based 值，转内部 0-based 要 **−2**（−1 转 0-based、−1 去边框）；`load_9` 已去过边框，所以 `iw = img.width` **不能再减 2**（减两次会切块错位、画面变形）
+- **按字形对齐**（不是行盒）：`ink_top` 抬掉字形距行盒顶的空隙 → 看得见的第一笔正好落在 `edge_t`；高度锚定「**末行字形底** + `edge_b`」，所以换行后「最后一笔到气泡底」恒为 68px
+- **不拉伸时文字居中**：气泡宽度还停在素材原宽（`target_w <= min_w`）且没折行时，**每行各自水平居中**于内容区；一旦被撑开或折行，回到左对齐
+
+### 气泡预览图模块（470×470 画板）
+
+`_generate_bubble_preview(left_text, right_text, font_size, text_color)` + `/generate_bubble_preview` / `/export_bubble_preview` / `/upload_preview_bg`：
+
+- 画板 **470×470**，背景优先读用户上传的 `气泡预览图背景.png`（`BUBBLE_PREVIEW_BG_NAME`），没有就纯白；上传的图会自动缩放到 470×470
+- **气泡素材沿用气泡宣传那套** `left_.9.png` / `right_.9.png`
+- **尺寸做法**：素材去 1px 黑边得 174×174 → **整体等比缩到 168×168**（`k = 168/174 = 0.9655`），点九拉伸区与文字留白**全部 × k**
+- **点九逻辑用 iOS 那套**（不是安卓）：拉伸区 纵向第82格 / 横向右第106格·左第71格，再 ×k；文字留白用 `PROMO_IOS_TEXT_*`（左75/右45/上63/下68，左气泡左右镜像）再 ×k
+- **摆位**：左气泡**左上角 (72,90)、向右延长**；右气泡**右上角 (392,230)、向左延长**（`BUBBLE_PREVIEW_LEFT_XY` / `_RIGHT_XY`）
+- 文字**左右分开输入**、**苹方/Noto、默认字号 38**、画板内自动折行（可用宽 = 画板余量 − 左右留白）
+- **文字竖直居中**：算文字块**字形**实占高度，在气泡里上下均分（水平仍左对齐到 `edge_l`）
+- **168 只是起点**：留白合计 115.9px，所以 168 的气泡只装得下 1 个中文字；2 字起气泡九宫格拉伸变大（留白保持固定，因为固定区不随拉伸移动）
+- 可用宽上限：左气泡 `470−72=398`、右气泡 `392`，超了折行（不折会跑出画板）
 
 ### 前端 (templates/index.html)
 
@@ -86,6 +145,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **吸管取色**：优先 `window.EyeDropper`（Chrome/Edge，可吸整个屏幕）；不可用时回退 `getDisplayMedia` 截当前标签页 → 全屏 `<img id="cpEyeLayer">` 覆盖层点哪取哪（Firefox/Safari）。吸管激活时 `cpEyeOn` 会挡掉「点面板外关闭」、`body.cp-eyedrop` 全局十字光标；Esc 或再点按钮取消
 - 13 个颜色共用同一个取色面板，JS 自动为每个 `input[type=color]` 生成色块按钮（`.cp-swatch`）并同步颜色；改色通过给隐藏 input 派发 `input` 事件驱动原有监听（暗色自动跟随、实时预览）
 - **商城轮播页自上而下**：轮播色 grid（多 点赞底部颜色左/右/点赞文字色 3 项，色板自动生成）→ 编辑行 → 上传行 → `#carouselPreviews`（5 张静态）→ `#carouselGifPreviews`（2 列动效，inline `max-width:760px` 可调宽）；动效/上传/改色走 `doCarouselPreview()` → `scheduleCarouselGif()` 去抖调 `/generate_gif`（busy 锁防并发，预览全宽 360）
+- **气泡宣传页自上而下**：独立取色器 `colorNpText` → 素材上传行（`.promo-upload`，安卓/iOS 共用）→ 安卓那组（左/右 textarea + 字号 + 导出 + `#ninepatchPreviews`）→ 虚线分隔 → **IOS 那组**（`npTextLIos` / `npTextRIos` / `npFontSizeIos` / `#ninepatchPreviewsIos`）。两组各自去抖 300ms 调 `/generate_promo`（IOS 带 `ios:true`），改共享的文字色会**两套一起刷**
+- **⚠️ 两个易踩的坑**（都修过）：
+  1. **去抖计时器必须先声明**：`switchTab()` 里 `clearTimeout(npDebounce)`，若 `let npDebounce` 写在 `switchTab` **后面**，进页面时切到气泡宣传页会撞 TDZ 抛 `ReferenceError` → **整个初始化中断、预览不渲染**（要动一下输入框才出来）。计时器声明统一提到 `switchTab` 之前
+  2. **`switchTab` 三个页都要有分支**：漏掉 `bubble` 的话，从气泡宣传切回气泡概览不会刷新预览
+  3. **`collectState()` 别整个 merge `getNinepatchParams()`**：它里面的「文字色」是**气泡宣传**自己的取色器，会把 `getColors()` 的同名键（**气泡预览**的文字色）覆盖掉 → 存档里存错值、重开网页气泡预览被灌成宣传的色。要**逐项写**，宣传的文字色用独立键 **`宣传文字色`**（模板读的也是这个键）
+  4. **上传素材后要刷新所有用到它的预览**：`uploadPromoBubble` 一开始只刷了安卓 + IOS，漏了**气泡预览图**（也用同一份素材）→ 传了新图预览图不变
 
 ### 字体体系
 
@@ -94,7 +159,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. `C:/Windows/Fonts/msyh.ttc`（Windows 降级）
 3. `ImageFont.load_default()`（8px 降级）
 
-字号可在网页上实时调整（默认 36，范围 12-120）。
+**气泡宣传 / 气泡预览图**另有专属字体链（逐字符按所属字体渲染）：
+
+| 用途 | 常量 | 加载顺序 |
+|---|---|---|
+| 气泡宣传·安卓中文 | `PROMO_FONT_CN` | **`fonts/NotoSansSC-Light.ttf`**（开源 OFL）→ `msyhl.ttc` → 苹方 |
+| 气泡宣传·安卓英文 | `PROMO_FONT_EN` | **`fonts/NotoSans-Light.ttf`**（开源 OFL）→ `Roboto-Regular.ttf` → `segoeui.ttf` → 苹方 |
+| 气泡宣传·iOS | `PROMO_IOS_FONT` | 苹方 → 微软雅黑 |
+| 气泡预览图 | 代码内 `load_font()` | 苹方 → 微软雅黑 |
+
+**为什么优先开源字体**：微软雅黑 / Segoe UI / 苹方都是**专有字体**，不能合法分发到对方平台（Windows 用微软的、Mac 用苹果的，两端永远不一致）。改用 **Noto Sans**（SIL OFL）+ **Roboto**（Apache 2.0）后 **Windows 与 Mac 完全一致**、也没有授权问题。
+
+- `fonts/NotoSansSC-Light.ttf`（10.1MB）与 `fonts/NotoSans-Light.ttf`（632KB）都是从 Google Fonts 的可变字体 `NotoSansSC[wght].ttf` / `NotoSans[wdth,wght].ttf` 用 `fontTools.varLib.instancer` 抽出 **wght=300** 的静态字重（源在 `github.com/google/fonts`，raw 可直接下）
+- ⚠️ 抽完记得**改 name 表**（`usWeightClass=300` 但名字还是 Thin，PIL 的 `getname()` 会误导）
+- `msyhl.ttc` / `segoeui.ttf` 仅作回退保留（Windows 上万一 Noto 缺失时才用）
+- 中文字宽一致（50号 = 50px/字），但**数字宽度不同**（雅黑 19 / 苹方 30 / Noto 27），换字体后带数字的文案宽度会变
+
+字号可在网页上实时调整（商城轮播编辑文字默认 36；气泡宣传安卓/iOS 各默认 50；范围 12-120）。
 
 ## Common Workflows
 

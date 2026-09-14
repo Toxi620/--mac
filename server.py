@@ -106,6 +106,20 @@ def get_colors() -> dict:
             "点赞文字色": h(pipeline.DEFAULT_LIKE_TEXT_COLOR)}
 
 
+@app.after_request
+def no_cache(resp):
+    """开发用：禁掉 HTML/JS 缓存，避免改完代码刷新看不到变化。
+
+    页面里的预览图是 base64 内联的，本来就不会缓存；但 index.html 本身
+    被浏览器缓存住的话，改了模板也看不到效果。
+    """
+    if not getattr(sys, 'frozen', False):          # 只在本地开发时加
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+    return resp
+
+
 @app.route("/")
 def index():
     return render_template("index.html", colors=get_colors(),
@@ -241,11 +255,12 @@ def generate_promo():
     data = request.get_json()
     lt = data.get("左文字", "")
     rt = data.get("右文字", "")
-    size = int(data.get("字号", 36))
+    size = int(data.get("字号", 50))
     color = hex_to_rgb(data.get("文字色", "#333333"))
+    ios = bool(data.get("ios"))
     try:
         imgs = pipeline._generate_promo(
-            left_text=lt, right_text=rt, font_size=size, text_color=color)
+            left_text=lt, right_text=rt, font_size=size, text_color=color, ios=ios)
         import base64
         result = {}
         for name, img in imgs.items():
@@ -268,24 +283,83 @@ def export_promo():
     data = request.get_json()
     lt = data.get("左文字", "")
     rt = data.get("右文字", "")
-    size = int(data.get("字号", 36))
+    size = int(data.get("字号", 50))
     color = hex_to_rgb(data.get("文字色", "#333333"))
+    ios = bool(data.get("ios"))
     try:
         imgs = pipeline._generate_promo(
-            left_text=lt, right_text=rt, font_size=size, text_color=color)
+            left_text=lt, right_text=rt, font_size=size, text_color=color, ios=ios)
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for arc, img in [("左气泡.png", imgs["左侧气泡"]),
-                             ("右气泡.png", imgs["右侧气泡"])]:
+            suffix = "_IOS" if ios else ""
+            for arc, img in [("左气泡%s.png" % suffix, imgs["左侧气泡"]),
+                             ("右气泡%s.png" % suffix, imgs["右侧气泡"])]:
                 buf = io.BytesIO()
                 img.save(buf, format="PNG")
                 buf.seek(0)
                 zf.writestr(arc, buf.getvalue())
         zip_buf.seek(0)
+        name = "气泡宣传IOS.zip" if ios else "气泡宣传.zip"
         return send_file(zip_buf, mimetype="application/zip",
-                         as_attachment=True, download_name="气泡宣传.zip")
+                         as_attachment=True, download_name=name)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/generate_bubble_preview", methods=["POST"])
+def generate_bubble_preview():
+    """气泡预览图：470×470 画板，左右气泡各自输入文字"""
+    import base64
+    data = request.get_json()
+    lt = data.get("左文字", "")
+    rt = data.get("右文字", "")
+    size = int(data.get("字号", pipeline.BUBBLE_PREVIEW_FONT_SIZE))
+    color = hex_to_rgb(data.get("文字色", "#333333"))
+    try:
+        img = pipeline._generate_bubble_preview(lt, rt, size, color)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        return jsonify({"ok": True, "preview": f"data:image/png;base64,{b64}"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/export_bubble_preview", methods=["POST"])
+def export_bubble_preview():
+    """气泡预览图导出：470×470 全尺寸 PNG"""
+    data = request.get_json()
+    lt = data.get("左文字", "")
+    rt = data.get("右文字", "")
+    size = int(data.get("字号", pipeline.BUBBLE_PREVIEW_FONT_SIZE))
+    color = hex_to_rgb(data.get("文字色", "#333333"))
+    try:
+        img = pipeline._generate_bubble_preview(lt, rt, size, color)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return send_file(buf, mimetype="image/png",
+                         as_attachment=True, download_name="气泡预览图.png")
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/upload_preview_bg", methods=["POST"])
+def upload_preview_bg():
+    """气泡预览图的背景上传（任意尺寸，合成时缩放到 470×470）"""
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"ok": False, "error": "未上传文件"}), 400
+    if not file.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+        return jsonify({"ok": False, "error": "仅支持 PNG / JPG"}), 400
+    try:
+        im = Image.open(file.stream).convert("RGBA")
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"图片读取失败：{e}"}), 400
+    dest = os.path.join(pipeline.USER_DATA_DIR, pipeline.BUBBLE_PREVIEW_BG_NAME)
+    im.save(dest)
+    return jsonify({"ok": True, "file": pipeline.BUBBLE_PREVIEW_BG_NAME,
+                    "size": list(im.size)})
 
 
 @app.route("/export_carousel", methods=["POST"])
@@ -441,6 +515,48 @@ def upload_bubble():
     dest = os.path.join(pipeline.USER_DATA_DIR, fname)
     file.save(dest)
     return jsonify({"ok": True, "file": fname})
+
+
+@app.route("/upload_promo_bubble", methods=["POST"])
+def upload_promo_bubble():
+    """气泡宣传专用的气泡素材上传（安卓/IOS 共用一张 176×176 带 1px 黑边的图）。
+
+    - 存 2 份：`<side>_.9.png`（安卓 / iOS / 气泡预览图 三处共用；iOS 读时自动去 1px 边框）、
+      `<side>_promo_src.png`（原图备份）
+    - 尺寸不是 176×176 时按「无边框」处理：安卓那份补 1px 透明边框凑够，iOS 那份原样
+    """
+    import base64
+    ALLOWED = {"left", "right"}
+    side = request.form.get("side")
+    if side not in ALLOWED:
+        return jsonify({"ok": False, "error": f"side 必须为 {ALLOWED}"}), 400
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"ok": False, "error": "未上传文件"}), 400
+    if not file.filename.endswith(".png"):
+        return jsonify({"ok": False, "error": "仅支持 PNG"}), 400
+    try:
+        im = Image.open(file.stream).convert("RGBA")
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"图片读取失败：{e}"}), 400
+
+    ud = pipeline.USER_DATA_DIR
+    if im.size == (176, 176):
+        bordered, borderless = im, im.crop((1, 1, 175, 175))
+    else:
+        # 不是 176：当成无边框图，安卓那份补一圈 1px 透明边框
+        borderless = im
+        bordered = Image.new("RGBA", (im.width + 2, im.height + 2), (0, 0, 0, 0))
+        bordered.paste(im, (1, 1))
+
+    bordered.save(os.path.join(ud, f"{side}_.9.png"))
+    bordered.save(os.path.join(ud, f"{side}_promo_src.png"))
+
+    buf = io.BytesIO()
+    bordered.save(buf, format="PNG")
+    thumb = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return jsonify({"ok": True, "file": f"{side}_.9.png", "thumb": thumb,
+                    "size": list(im.size)})
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 根据配色.txt替换叠加层颜色、点九拉伸聊天气泡、分层合成亮/暗双模式图片。
 """
 
+import math
 import os
 import re
 import sys
@@ -649,16 +650,24 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
     return result
 
 
-def _generate_promo(left_text='', right_text='', font_size=36,
-                    text_color=(51, 51, 51)):
-    """气泡宣传：左/右气泡按各自文案生成，左气泡左对齐、右气泡右对齐。
+def _generate_promo(left_text='', right_text='', font_size=50,
+                    text_color=(51, 51, 51), ios=False):
+    """气泡宣传：按点九生成左/右气泡。
 
-    - 源图：left_.9.png / right_.9.png（优先用户上传，回退打包目录），176×176
-    - 采用「商城6字展示(预览)」的生成思路：气泡按文案包字（pad+文字宽/高），
-      不做严格点九内容区填充；不足时由素材固定区下限兜底。
-    - 换行只认输入里的手动换行（\n），不再自动截断。
-    - 文字：苹方（商城轮播同款字体），文字块在内容区内垂直居中，
-      左气泡靠内容区左缘、右气泡靠内容区右缘，两侧各留 PROMO_TEXT_INSET_X px。
+    两套完全独立的素材与留白配置（`ios=False` 安卓 / `ios=True` IOS）：
+    - **安卓**（已冻结）：源图 `left_.9.png` / `right_.9.png`（176×176，带 1px 点九黑边），
+      留白从**黑线框**往里量，常量 `PROMO_*` / `PROMO_L_*`
+    - **IOS**：读**同一份** `left_.9.png` / `right_.9.png`，`load_9()` 里自动去 1px 黑边，
+      点九参数按规格手写（拉伸区第82格/第106格），文字留白用 `PROMO_IOS_TEXT_*`
+
+    公共逻辑（两套一致）：
+    - 换行：手动 `\\n` 优先，超长自动折行，带标点禁则
+    - 文字：中文 Noto Sans SC Light / 英文 Noto Sans Light（都是开源），逐字符渲染；字号默认 50；
+      字间距 `PROMO_LETTER_SPACING`、行高系数 `PROMO_LINE_H_RATIO`
+    - 左右气泡一律左对齐到内容框左缘
+    - 限宽：安卓看 `PROMO_MAX_BUBBLE_W`（气泡总宽），IOS 看 `PROMO_IOS_MAX_W`
+    - 右侧留白退让：先用「不换行档」，放不下退让到「换行档」，仍放不下才折行
+    - 下限 = 素材本身尺寸
     返回 {"左侧气泡": Image, "右侧气泡": Image}。
     """
     from PIL import ImageDraw, ImageFont
@@ -666,68 +675,581 @@ def _generate_promo(left_text='', right_text='', font_size=36,
     def load_9(n):
         p = os.path.join(USER_DATA_DIR, n)
         if os.path.exists(p):
-            return Image.open(p).convert('RGBA')
-        return Image.open(os.path.join(WORK_DIR, n)).convert('RGBA')
+            im = Image.open(p).convert('RGBA')
+        else:
+            im = Image.open(os.path.join(WORK_DIR, n)).convert('RGBA')
+        # iOS 用无黑边的图：用户上传的是 176 带边框的，这里统一去掉那 1px
+        if ios and im.size == (176, 176):
+            im = im.crop((1, 1, 175, 175))
+        return im
 
-    def load_font(size):
-        for fp in [os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf'),
-                   'C:/Windows/Fonts/msyh.ttc']:
+    def _opaque_box(im):
+        """气泡实体（不透明像素）包围盒，返回 (左, 右, 上, 下)，与黑线框同口径。
+
+        iOS 素材没有点九黑线，用实体范围当「内容区基准」。
+        getbbox() 给的是 (left, upper, right, lower)，这里转成 (l, r, t, b)。
+        """
+        bb = im.split()[3].getbbox()
+        if not bb:
+            return 0, im.width, 0, im.height
+        left, upper, right, lower = bb
+        return left, right, upper, lower
+
+    def _load_font(paths, size):
+        """按候选列表找第一个能用的字体。"""
+        for fp in paths:
             try:
                 return ImageFont.truetype(fp, size)
             except Exception:
                 continue
         return ImageFont.load_default()
 
+    def load_font(size):
+        """中文 = SimSun（Windows 中易宋体），英文/数字 = Arial。返回 (cn, en)。"""
+        return _load_font(PROMO_FONT_CN, size), _load_font(PROMO_FONT_EN, size)
+
+    def is_ascii(ch):
+        """英文/数字/半角符号走 Arial，其余（中文、全角）走 SimSun。"""
+        return ord(ch) < 0x2E80
+
+    def char_font(ch, cn_font, en_font):
+        return en_font if is_ascii(ch) else cn_font
+
+    def text_width(s, cn_font, en_font):
+        """整段宽度 = 逐字符按所属字体累加 + 字间距（混排不能直接用 getlength）。
+
+        每个字符后面都算一次字距，与 split_runs 的推进方式保持一致。
+        iOS 的字间距独立（PROMO_IOS_LETTER_SPACING）。
+        """
+        sp = PROMO_IOS_LETTER_SPACING if ios else PROMO_LETTER_SPACING
+        return sum(char_font(ch, cn_font, en_font).getlength(ch) + sp for ch in s)
+
+    def split_runs(s, cn_font, en_font):
+        """按字体把字符串切成若干段，返回 [(font, 文字, 起点x偏移)]。
+
+        段内字符按各自字宽 + 字间距推进；同字体的连续字符合并成一段渲染
+        （字距通过每段内部的逐字定位实现，所以这里按「逐字符位置」切段）。
+        """
+        sp = PROMO_IOS_LETTER_SPACING if ios else PROMO_LETTER_SPACING
+        runs = []
+        x = 0.0
+        for ch in s:
+            f = char_font(ch, cn_font, en_font)
+            if runs and runs[-1][0] is f:
+                runs[-1][1] += ch
+                runs[-1][2].append(x)
+            else:
+                runs.append([f, ch, [x]])
+            x += f.getlength(ch) + sp
+        return [(f, seg, pos) for f, seg, pos in runs]
+
     def split_lines(text):
         """只在输入框手动换行处断行（不再按字数自动截断）。"""
         return text.split('\n')
 
+    def _tokens(ln):
+        """把一行切成「整体不拆」的块 + 单个字符。
+
+        需要整体保留的（换行时不能从中间劈开）：
+        - `#`/`@`/`$` 后面跟一串字母数字，如 `#1234567`、`@abc`
+        - 纯数字串，如 `1234567`
+        其余一律按单字切，方便标点禁则和逐字折行。
+        """
+        toks, i, n = [], 0, len(ln)
+        while i < n:
+            ch = ln[i]
+            if ch in '#@$':
+                j = i + 1
+                while j < n and (ln[j].isalnum() or ln[j] in '_-'):
+                    j += 1
+                if j > i + 1:                      # 标记符后面有内容才算整体
+                    toks.append(ln[i:j])
+                    i = j
+                    continue
+            if ch.isdigit():
+                j = i
+                while j < n and (ln[j].isdigit() or ln[j] in '.,:'):
+                    j += 1
+                toks.append(ln[i:j])
+                i = j
+                continue
+            toks.append(ch)
+            i += 1
+        return toks
+
+    def wrap_to_width(lines, twidth, max_w):
+        """把每行按宽度上限折行。
+
+        规则：
+        - `#1234567` / 纯数字这类「原子串」整体不拆（除非它自己就超宽）
+        - 英文单词尽量不从中间劈开：回退到最后一个空格
+        - 标点禁则：「不置行首」的标点跟前一字一起带到下行；「不置行末」的推到下行
+        twidth(s) 是「按中英混排规则算整段宽度」的函数。
+        """
+        out = []
+        for ln in lines:
+            if not ln or twidth(ln) <= max_w:
+                out.append(ln)
+                continue
+            # 原子串自己就超宽 -> 只能退化成一个字一个字地拆
+            toks = []
+            for t in _tokens(ln):
+                toks.extend(list(t) if (len(t) > 1 and twidth(t) > max_w) else [t])
+
+            cur = ''
+            for tok in toks:
+                if not cur or twidth(cur + tok) <= max_w:
+                    cur += tok
+                    continue
+                # 放不下 -> 先把 cur 收尾，tok 留到下一行
+                # 标点禁则：不能在行首的标点，跟前一个字符一起挪到下一行
+                if tok[0] in PROMO_NO_LINE_START and len(cur) > 1:
+                    cur, carry = cur[:-1], cur[-1]
+                    out.append(cur)
+                    cur = carry + tok
+                    continue
+                # 不能在行末的标点（开括号/前引号），推到下一行
+                if cur[-1] in PROMO_NO_LINE_END:
+                    cur, carry = cur[:-1], cur[-1]
+                    out.append(cur)
+                    cur = carry + tok
+                    continue
+                # 英文单词尽量不从中间劈开：回退到最后一个空格
+                if ' ' in cur and not cur.endswith(' '):
+                    head, _, tail = cur.rpartition(' ')
+                    if head:
+                        out.append(head)
+                        cur = tail + tok
+                        continue
+                out.append(cur)
+                cur = tok
+            out.append(cur)
+        return out
+
     def build(img, text, align):
-        np_params = parse_nine_patch(img)
+        if ios:
+            # iOS 的点九参数由规格手动指定（不从黑线读）：
+            #   拉伸区 = 纵向第 PROMO_IOS_STRETCH_Y 那 1px、横向第 PROMO_IOS_STRETCH_X 那 1px
+            #   （坐标是「1-based 第几格」，换算内部 0-based 索引要 -1）
+            # 注意：load_9 已经替 iOS 去掉了那 1px 黑边，这里拿到的就是内部图，
+            # 尺寸直接用 img.width / img.height，**不能再减 2**（减两次会错位变形）
+            iw, ih = img.width, img.height
+            # 横向拉伸区按左右镜像取：右气泡「左往右第106格」/ 左气泡「右往左第106格」
+            # 规格给的是**带 1px 黑边的文件**上的 1-based 格号：
+            #   文件坐标 → 内部 0-based = 格号 − 2（−1 转 0-based、−1 去掉那圈边框）
+            sx_col = PROMO_IOS_STRETCH_X if align == 'right' else PROMO_IOS_L_STRETCH_X
+            sx0 = sx_col - 2
+            sy0 = PROMO_IOS_STRETCH_Y - 2
+            np_params = {
+                'stretch_x': (sx0, sx0 + 1), 'stretch_y': (sy0, sy0 + 1),
+                'fixed_left': sx0, 'fixed_right': iw - (sx0 + 1),
+                'fixed_top': sy0, 'fixed_bottom': ih - (sy0 + 1),
+                'pad_left': 0, 'pad_right': 0, 'pad_top': 0, 'pad_bottom': 0,
+                'internal_w': iw, 'internal_h': ih,
+            }
+        else:
+            np_params = parse_nine_patch(img)
+            iw, ih = np_params['internal_w'], np_params['internal_h']
+
         pl, pr = np_params['pad_left'], np_params['pad_right']
         pt, pb = np_params['pad_top'], np_params['pad_bottom']
-        min_w = np_params['fixed_left'] + np_params['fixed_right']
-        min_h = np_params['fixed_top'] + np_params['fixed_bottom']
+        # 最小尺寸 = 素材点九图本身大小（单字时也不压缩，保持原始图尺寸）
+        min_w = max(np_params['fixed_left'] + np_params['fixed_right'], img.width)
+        min_h = max(np_params['fixed_top'] + np_params['fixed_bottom'], img.height)
+
+        # ── 留白基准框（左缘/右缘/上缘/下缘，内部坐标）────────────────
+        # 安卓：点九黑线框（底边黑线给横向 bb_l/bb_r、右边黑线给纵向 bb_t/bb_b）
+        # IOS：没有黑线，改用气泡实体（不透明像素）bbox
+        if ios:
+            # iOS 的文字区按规格给绝对坐标（内部 0-based）：
+            #   右气泡：左起 75、右止 宽−45；左气泡镜像 → 左起 45、右止 宽−75
+            #   上起 63、下止 高−68（上下不镜像）
+            bb_l, bb_r, bb_t, bb_b = 0, iw, 0, ih
+            if align == 'right':
+                ins_l, ins_r = PROMO_IOS_TEXT_L, PROMO_IOS_TEXT_R
+            else:
+                ins_l, ins_r = PROMO_IOS_TEXT_R, PROMO_IOS_TEXT_L
+            ins_t, ins_b = PROMO_IOS_TEXT_T, PROMO_IOS_TEXT_B
+            edge_l, edge_r = ins_l, ins_r
+            edge_t = ins_t
+        else:
+            bb_l = np_params['pad_left']
+            bb_r = iw - np_params['pad_right']
+            bb_t = np_params['pad_top']
+            bb_b = ih - np_params['pad_bottom']
+            if align == 'right':
+                ins_l, ins_r, ins_t, ins_b = (PROMO_INSET_L, PROMO_INSET_R,
+                                              PROMO_INSET_T, PROMO_INSET_B)
+            else:
+                ins_l, ins_r, ins_t, ins_b = (PROMO_L_INSET_L, PROMO_L_INSET_R,
+                                              PROMO_L_INSET_T, PROMO_L_INSET_B)
+            edge_l = bb_l + ins_l
+            edge_r = (iw - bb_r) + ins_r
+            edge_t = bb_t + ins_t
+
+        def edges(gl, gr):
+            """(左缘, 右缘) 距气泡边缘的距离（安卓用；iOS 已直接算好）。"""
+            return bb_l + gl, (iw - bb_r) + gr
 
         lines = split_lines(text) if text else []
-        font = load_font(font_size)
-        if lines:
-            ascent, descent = font.getmetrics()
-            line_h = ascent + descent
-            text_w = max(font.getlength(ln) for ln in lines)
+        if ios:
+            # iOS 中英文统一用苹方，字号独立（没传字号时用 iOS 自己的默认值）
+            f = _load_font(PROMO_IOS_FONT, font_size or PROMO_IOS_FONT_SIZE)
+            cn_font = en_font = f
         else:
-            line_h = text_w = 0
+            cn_font, en_font = load_font(font_size or PROMO_FONT_SIZE)
+
+        if lines:
+            # 混排行高取两种字体里大的，再乘系数收窄行距（避免重叠的同时压紧一点）
+            a1, d1 = cn_font.getmetrics()
+            a2, d2 = en_font.getmetrics()
+            line_h = max(a1 + d1, a2 + d2) * PROMO_LINE_H_RATIO
+            ascent = max(a1, a2)
+        else:
+            ascent = line_h = 0.0
+
+        def twidth(s):
+            return text_width(s, cn_font, en_font)
+
+        wrapped = False
+        if ios:
+            # iOS：文字区固定（规格给死），不分档、不退让
+            max_w = PROMO_IOS_MAX_W
+            edge_b = ins_b
+            avail = max_w - edge_l - edge_r
+            if lines:
+                if avail > 0:
+                    wrapped = len(wrap_to_width(lines, twidth, avail)) > len(lines)
+                    lines = wrap_to_width(lines, twidth, avail)
+                widths = [twidth(ln) for ln in lines]
+                text_w = max(widths)
+            else:
+                widths = []
+                text_w = 0.0
+        else:
+            # 安卓：左侧（主侧）留白分档 —— 文字宽超阈值算「横向拉伸」
+            stretched = bool(lines) and max(twidth(ln) for ln in lines) > PROMO_STRETCH_TEXT_W
+            pair = (PROMO_INSET_L, PROMO_INSET_L_STRETCH, PROMO_INSET_R,
+                    PROMO_INSET_R_WRAP, PROMO_INSET_B, PROMO_INSET_B_WRAP)
+            pair_l = (PROMO_L_INSET_L, PROMO_L_INSET_L_STRETCH, PROMO_L_INSET_R,
+                      PROMO_L_INSET_R_WRAP, PROMO_L_INSET_B, PROMO_L_INSET_B_WRAP)
+            base_l, str_l, base_r, wrap_r, base_b, wrap_b = \
+                pair if align == 'right' else pair_l
+            ins_l = str_l if stretched else base_l
+            max_w = PROMO_MAX_BUBBLE_W
+            edge_l = bb_l + ins_l
+            if lines:
+                # 先用「不换行档」右留白：放得下就用它；放不下退让到「换行档」再试
+                for cur_r in (base_r, wrap_r):
+                    ins_r = cur_r
+                    edge_r = (iw - bb_r) + ins_r
+                    avail = max_w - edge_l - edge_r
+                    if avail <= 0:
+                        continue
+                    if len(wrap_to_width(lines, twidth, avail)) <= len(lines):
+                        break               # 这一档放得下
+                else:
+                    wrapped = True          # 两档都放不下 -> 真折行
+                ins_r = base_r if not wrapped else ins_r
+                edge_r = (iw - bb_r) + ins_r
+                avail = max_w - edge_l - edge_r
+                if avail > 0:
+                    lines = wrap_to_width(lines, twidth, avail)
+                widths = [twidth(ln) for ln in lines]
+                text_w = max(widths)
+            else:
+                edge_r = (iw - bb_r) + ins_r
+                widths = []
+                text_w = 0.0
+            # 下留白分档：不换行用基准值，换行用换行档
+            edge_b = (ih - bb_b) + (wrap_b if wrapped else base_b)
+
         text_h = line_h * len(lines)
 
-        # ≥2 行时首行上/末行下各加额外间距；单行仍整体居中不留
-        vinset = PROMO_TEXT_INSET_Y if len(lines) > 1 else 0
-        target_w = max(min_w, int(text_w) + pl + pr + 2 * PROMO_TEXT_INSET_X)
-        target_h = max(min_h, text_h + 2 * vinset + pt + pb)
+        # iOS 按「字形」而不是「行盒」对齐：
+        #   - 顶部：把第一行字形距行盒顶的空隙 ink_top 抵消掉 -> 字形顶正好落 edge_t
+        #   - 底部（含换行）：高度锚定「最后一行的字形底」，让
+        #     最后一行墨迹底 -> 气泡底 正好等于 edge_b（规格 70px）
+        ink_top = ink_bot_ink = 0
+        if ios and lines:
+            boxes = [cn_font.getbbox(ln) for ln in lines if ln]
+            boxes = [b for b in boxes if b]
+            if boxes:
+                ink_top = min(b[1] for b in boxes)      # 字形顶距行盒顶
+                ink_bot_ink = max(b[3] for b in boxes)  # 字形底距行盒顶
+        if ios and lines:
+            # 末行基线 = edge_t + (n-1)*line_h + ascent - ink_top
+            # 末行墨迹底 = 基线 + (ink_bot_ink - ascent)
+            last_ink_bottom = (edge_t + (len(lines) - 1) * line_h
+                               - ink_top + ink_bot_ink)
+            # last_ink_bottom 已是「含 edge_t 的绝对 y」，所以高度只要再补 edge_b
+            content_bottom = last_ink_bottom + edge_b
+        else:
+            content_bottom = text_h + edge_t + edge_b
+
+        # 触发折行时，气泡总宽直接拉到上限
+        target_w = max_w if wrapped \
+            else max(min_w, math.ceil(text_w + edge_l + edge_r))
+        target_h = max(min_h, math.ceil(content_bottom))
         bubble = nine_patch_scale(img, target_w, target_h, np_params)
         if lines:
             draw = ImageDraw.Draw(bubble)
-            # 文字块在内容区内垂直居中，并保证上/下至少 vinset
-            content_h = target_h - pt - pb
-            top = pt + vinset + max(0, (content_h - 2 * vinset - text_h) // 2)
+            # iOS 且气泡没被拉伸（宽度还停在素材原宽）时，文字在内容区**水平居中**；
+            # 一旦被拉宽（含折行拉满），回到左对齐
+            center_zone = (ios and not wrapped
+                           and target_w <= min_w)
+            zone_w = target_w - edge_l - edge_r
             for i, ln in enumerate(lines):
-                cy = top + i * line_h + line_h // 2
-                if align == 'right':
-                    # 右气泡：靠内容区右缘 + 内侧留白，锚点 rm
-                    draw.text((target_w - pr - PROMO_TEXT_INSET_X, cy), ln,
-                              font=font, fill=text_color + (255,), anchor="rm")
-                else:
-                    # 左气泡：靠内容区左缘 + 内侧留白，锚点 lm
-                    draw.text((pl + PROMO_TEXT_INSET_X, cy), ln, font=font,
-                              fill=text_color + (255,), anchor="lm")
+                # 基线 = 上留白 + 已累计行高 + 本行 ascent（iOS 再抬掉字形上空隙）
+                base_y = edge_t + i * line_h + ascent - ink_top
+                x0 = edge_l
+                if center_zone:
+                    x0 = edge_l + (zone_w - twidth(ln)) / 2.0   # 每行各自居中
+                # 逐字符渲染：中文 / 英文各用各的字体，按字宽+字间距逐个定位
+                for f, seg, xs in split_runs(ln, cn_font, en_font):
+                    for ch, dx in zip(seg, xs):
+                        draw.text((x0 + dx, base_y), ch, font=f,
+                                  fill=text_color + (255,), anchor="ls")
         return bubble
 
+    # 安卓 / IOS 读同一份素材（176×176 带 1px 黑边）；iOS 在 load_9 里自动去边框
     left = build(load_9('left_.9.png'), left_text, 'left')
     right = build(load_9('right_.9.png'), right_text, 'right')
     return {"左侧气泡": left, "右侧气泡": right}
 
 
-PROMO_TEXT_INSET_X = 14  # 气泡宣传：文字与内容区左右边缘之间的留白（px）
-PROMO_TEXT_INSET_Y = 8   # 气泡宣传：≥2 行时，首行上/末行下的额外间距（px）
+PROMO_TEXT_INSET_X = 14  # 已废弃：气泡宣传改为严格按点九 padding，保留仅为兼容旧引用
+PROMO_TEXT_INSET_Y = 8   # 已废弃：同上
+
+# 气泡宣传字体：中文 = 微软雅黑 Light，英文/数字/半角符号 = Segoe UI
+# 按候选顺序取第一个可用的，保证 mac 打包后也有兜底
+PROMO_FONT_CN = [os.path.join(WORK_DIR, 'fonts', 'NotoSansSC-Light.ttf'),  # 开源 OFL
+                 'C:/Windows/Fonts/msyhl.ttc',       # 回退：Windows 微软雅黑 Light
+                 os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf')]
+PROMO_FONT_EN = [os.path.join(WORK_DIR, 'fonts', 'NotoSans-Light.ttf'),  # 开源 OFL（与中文同族）
+                 os.path.join(WORK_DIR, 'fonts', 'Roboto-Regular.ttf'),
+                 'C:/Windows/Fonts/segoeui.ttf',     # 回退：Windows Segoe UI
+                 os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf')]
+# 安卓那套的默认字号（iOS 用 PROMO_IOS_FONT_SIZE）
+PROMO_FONT_SIZE = 50
+
+# 气泡宣传的留白（绝对 px）——单行/多行统一，且从「点九黑线框」往里量：
+#   黑线框 = 底边黑线给横向、右边黑线给纵向围出的区域（等于 parse_nine_patch 的 pad 框）
+#   右气泡：左 45|30 / 右 45 / 上 22 / 下 25(不换行 28)。左气泡另一套独立值（见下），不镜像
+PROMO_INSET_L = 45           # 右气泡左留白·不拉伸时
+PROMO_INSET_L_STRETCH = 30   # 右气泡左留白·横向拉伸时
+PROMO_INSET_R = 45           # 右气泡右留白·不换行
+PROMO_INSET_R_WRAP = 25      # 右气泡右留白·换行时
+# 横向拉伸判据：文字宽超过这个值就算拉伸（按「一个文字时下点九黑线的中间空余」量的）
+PROMO_STRETCH_TEXT_W = 65
+# 字间距（px）：每个字符后额外留的空白，0 = 不加
+PROMO_LETTER_SPACING = 1
+# 行距系数：行高 = 字体自然行高(ascent+descent) × 该系数（1.0 = 原样，<1 更紧凑）
+PROMO_LINE_H_RATIO = 0.9014
+# 折行上限 = 整个气泡的总宽度（含 1px 点九黑边）。文字撑过就自动折行，
+# 折行时气泡直接拉到该总宽。
+PROMO_MAX_BUBBLE_W = 776
+
+
+# 折行标点禁则（中文排版惯例）
+# 不能出现在行首的标点：若折行会把它顶到下一行行首，就把前一个字符一起带下去
+PROMO_NO_LINE_START = set('，。、；：？！）】》」』”’…—·,.;:?!)]}>')
+# 不能出现在行末的标点：开括号 / 前引号，折行时推到下一行
+PROMO_NO_LINE_END = set('（【《「『“‘([{<')
+PROMO_INSET_T = 22   # 右气泡上留白
+PROMO_INSET_B = 28   # 右气泡下留白·不换行
+PROMO_INSET_B_WRAP = 32   # 右气泡下留白·换行时
+
+# 左气泡另一套独立留白——同样从黑线框往里量
+PROMO_L_INSET_L = 63           # 左气泡左留白·不拉伸时
+PROMO_L_INSET_L_STRETCH = 43   # 左气泡左留白·横向拉伸时
+PROMO_L_INSET_R = 35   # 左气泡右留白·不换行
+PROMO_L_INSET_R_WRAP = 25    # 左气泡右留白·换行时
+PROMO_L_INSET_T = 22   # 左气泡上留白
+PROMO_L_INSET_B = 28   # 左气泡下留白·不换行
+PROMO_L_INSET_B_WRAP = 32   # 左气泡下留白·换行时
+
+# ── IOS 那套（176×176 带 1px 黑边素材，点九参数按规格手写）───────────
+# 拉伸区（1-based 格号）：
+#   纵向：上往下第 82 格那 1px（左右气泡相同）
+#   横向：右气泡「左往右第 106 格」；左气泡镜像 ——「右往左第 106 格」
+#         镜像索引 = 内部宽 174 − 106 = 68（1-based）→ 见 build 里的换算
+PROMO_IOS_STRETCH_Y = 82
+PROMO_IOS_STRETCH_X = 106           # 右气泡：左往右第 106 格
+PROMO_IOS_L_STRETCH_X = 71          # 左气泡：右往左第 106 格（含边框镜像 = 176−106+1）
+# 文字区（内部 0-based 绝对坐标换算的留白）
+#   左起第 75px、右止 宽−45；上起 63px、下止 高−68
+PROMO_IOS_TEXT_L = 75
+PROMO_IOS_TEXT_R = 45
+PROMO_IOS_TEXT_T = 63
+PROMO_IOS_TEXT_B = 68
+# 最宽（含 1px 黑边）
+PROMO_IOS_MAX_W = 905
+# iOS 独立的字间距（安卓用 PROMO_LETTER_SPACING=1，iOS 不加字距）
+PROMO_IOS_LETTER_SPACING = 0
+# iOS 独立字体（中文/英文都用苹方）与默认字号
+PROMO_IOS_FONT = [os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf'),
+                  'C:/Windows/Fonts/msyh.ttc']
+PROMO_IOS_FONT_SIZE = 50
+
+# ── 气泡预览图（470×470 画板）─────────────────────────────────────
+BUBBLE_PREVIEW_SIZE = 470          # 画板边长
+BUBBLE_PREVIEW_BASE = 168          # 气泡起始尺寸（短文案就是这个大小）
+BUBBLE_PREVIEW_LEFT_XY = (72, 90)  # 左气泡左上角
+BUBBLE_PREVIEW_RIGHT_XY = (392, 230)   # 右气泡右上角
+BUBBLE_PREVIEW_FONT_SIZE = 38      # 默认字号
+BUBBLE_PREVIEW_BG_NAME = '气泡预览图背景.png'   # 可上传替换
+# 左右气泡各自的最大可用宽度（画板内）
+BUBBLE_PREVIEW_MAX_W_LEFT = BUBBLE_PREVIEW_SIZE - BUBBLE_PREVIEW_LEFT_XY[0]
+BUBBLE_PREVIEW_MAX_W_RIGHT = BUBBLE_PREVIEW_RIGHT_XY[0]
+
+
+def _generate_bubble_preview(left_text='', right_text='', font_size=None,
+                             text_color=(51, 51, 51)):
+    """气泡预览图：470×470 画板上摆左右两颗气泡。
+
+    - 背景：用户上传的 `气泡预览图背景.png`（USER_DATA_DIR），没有就纯白
+    - 气泡素材沿用气泡宣传那套 `left_.9.png` / `right_.9.png`
+    - 先把素材（内部 174×174）等比缩到 **168×168** 作为起始尺寸，
+      点九参数与留白同比缩放（k = 168/174）
+    - 左气泡**左上角**(72,90)、**向右延长**；右气泡**右上角**(392,230)、**向左延长**
+    - 文字左右分开输入，苹方，默认字号 47
+    返回 470×470 的 RGBA 图。
+    """
+    from PIL import ImageDraw, ImageFont
+
+    size = font_size or BUBBLE_PREVIEW_FONT_SIZE
+    CANVAS = BUBBLE_PREVIEW_SIZE
+    BASE = BUBBLE_PREVIEW_BASE
+
+    # ── 背景 ──
+    bg_path = os.path.join(USER_DATA_DIR, BUBBLE_PREVIEW_BG_NAME)
+    if os.path.exists(bg_path):
+        canvas = Image.open(bg_path).convert('RGBA')
+        if canvas.size != (CANVAS, CANVAS):
+            canvas = canvas.resize((CANVAS, CANVAS), Image.LANCZOS)
+    else:
+        canvas = Image.new('RGBA', (CANVAS, CANVAS), (255, 255, 255, 255))
+
+    # ── 字体 ──
+    def load_font(sz):
+        for fp in [os.path.join(WORK_DIR, 'fonts', 'PingFang.ttf'),
+                   'C:/Windows/Fonts/msyh.ttc']:
+            try:
+                return ImageFont.truetype(fp, sz)
+            except Exception:
+                continue
+        return ImageFont.load_default()
+    font = load_font(size)
+
+    def prepare(fn, align):
+        """载入素材 → 去 1px 边框 → 缩到 BASE → 点九参数按 iOS 规格缩放。"""
+        p = os.path.join(USER_DATA_DIR, fn)
+        if not os.path.exists(p):
+            p = os.path.join(WORK_DIR, fn)
+        im = Image.open(p).convert('RGBA')
+        inner = im.crop((1, 1, im.width - 1, im.height - 1))   # 去 1px 黑边
+        k = BASE / float(inner.width)                          # 缩到 168 的系数
+        inner = inner.resize((BASE, BASE), Image.LANCZOS)
+        # 拉伸区按 **iOS 规格**（文件 1-based 格号 → 内部 0-based 要 −2），再按 k 缩
+        sx_col = PROMO_IOS_STRETCH_X if align == 'right' else PROMO_IOS_L_STRETCH_X
+        sx0 = int(round((sx_col - 2) * k))
+        sy0 = int(round((PROMO_IOS_STRETCH_Y - 2) * k))
+        n2 = {
+            'internal_w': BASE, 'internal_h': BASE,
+            'stretch_x': (sx0, sx0 + 1), 'stretch_y': (sy0, sy0 + 1),
+            'fixed_left': sx0, 'fixed_right': BASE - (sx0 + 1),
+            'fixed_top': sy0, 'fixed_bottom': BASE - (sy0 + 1),
+            'pad_left': 0, 'pad_right': 0, 'pad_top': 0, 'pad_bottom': 0,
+        }
+        return inner, n2
+
+    # ── 左右两侧的素材与文字留白（用 iOS 那套，按 k 缩；左气泡左右镜像）──
+    def side(align):
+        if align == 'left':
+            img, np_ = prepare('left_.9.png', 'left')
+            L, R = PROMO_IOS_TEXT_R, PROMO_IOS_TEXT_L
+        else:
+            img, np_ = prepare('right_.9.png', 'right')
+            L, R = PROMO_IOS_TEXT_L, PROMO_IOS_TEXT_R
+        k = BASE / 174.0
+        return img, np_, L * k, R * k, PROMO_IOS_TEXT_T * k, PROMO_IOS_TEXT_B * k
+
+    def wrap(text, maxw, cn_font):
+        """按宽度折行（中文逐字、英文尽量按空格）。"""
+        out = []
+        for ln in (text.split('\n') if text else []):
+            if not ln or cn_font.getlength(ln) <= maxw:
+                out.append(ln)
+                continue
+            cur = ''
+            for ch in ln:
+                if cur and cn_font.getlength(cur + ch) > maxw:
+                    if ch != ' ' and ' ' in cur:
+                        head, _, tail = cur.rpartition(' ')
+                        if head:
+                            out.append(head)
+                            cur = tail + ch
+                            continue
+                    out.append(cur)
+                    cur = ch
+                else:
+                    cur += ch
+            out.append(cur)
+        return out
+
+    def build(align, text, max_w):
+        img, np_, edge_l, edge_r, edge_t, edge_b = side(align)
+
+        # 折行宽度 = 画板可用宽度 − 左右留白
+        lines = wrap(text, max(60, max_w - edge_l - edge_r), font)
+        if lines:
+            a, d = font.getmetrics()
+            line_h = a + d
+        else:
+            a = line_h = 0
+        widths = [font.getlength(l) for l in lines]
+        text_w = max(widths) if widths else 0
+
+        # iOS 那套：按【字形】对齐 —— 抬掉字形距行盒顶的空隙，
+        # 高度锚定末行字形底 + edge_b（换行后"最后一笔到气泡底"恒为 edge_b）
+        ink_top = ink_bot_ink = 0
+        if lines:
+            boxes = [font.getbbox(l) for l in lines if l]
+            boxes = [b for b in boxes if b]
+            if boxes:
+                ink_top = min(b[1] for b in boxes)
+                ink_bot_ink = max(b[3] for b in boxes)
+        if lines:
+            content_bottom = (edge_t + (len(lines) - 1) * line_h
+                              - ink_top + ink_bot_ink + edge_b)
+        else:
+            content_bottom = edge_t + edge_b
+
+        target_w = max(BASE, int(math.ceil(text_w + edge_l + edge_r)))
+        target_h = max(BASE, int(math.ceil(content_bottom)))
+        bubble = nine_patch_scale(img, target_w, target_h, np_)
+
+        if lines:
+            draw = ImageDraw.Draw(bubble)
+            # 竖直居中：算文字块【字形】的实占高度，在气泡里上下均分
+            ink_h = (len(lines) - 1) * line_h + ink_bot_ink - ink_top
+            block_top = (target_h - ink_h) / 2.0 - ink_top
+            for i, ln in enumerate(lines):
+                base_y = block_top + i * line_h + a
+                draw.text((edge_l, base_y), ln, font=font,
+                          fill=text_color + (255,), anchor="ls")
+        return bubble
+
+    left = build('left', left_text, BUBBLE_PREVIEW_MAX_W_LEFT)
+    right = build('right', right_text, BUBBLE_PREVIEW_MAX_W_RIGHT)
+
+    # ── 摆到画板上 ──
+    lx, ly = BUBBLE_PREVIEW_LEFT_XY                 # 左气泡左上角，向右延长
+    rx, ry = BUBBLE_PREVIEW_RIGHT_XY                # 右气泡右上角，向左延长
+    canvas.alpha_composite(left, (lx, ly))
+    canvas.alpha_composite(right, (rx - right.width, ry))
+    return canvas
 
 
 def _save_colors(path, tc, tag, bg):
@@ -830,8 +1352,10 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
             glyph_img = shop_text_img.crop(glyph)
             bub.paste(glyph_img,
                       (round(ccx - gw / 2.0), round(ccy - gh / 2.0)), glyph_img)
+            # 用 alpha_composite 而不是 paste：贴到全透明画布上时，paste 会把
+            # 半透明像素按 alpha 与目标(全黑)加权，导致气泡边缘发黑
             cw = Image.new('RGBA', (420, 174), (0, 0, 0, 0))
-            cw.paste(bub, (0, round((174 - bub_h) / 2.0)), bub)   # 纵向居中
+            cw.alpha_composite(bub, (0, round((174 - bub_h) / 2.0)))   # 纵向居中
             shop_with_text = cw
 
     # Phase F: 引流位横幅
