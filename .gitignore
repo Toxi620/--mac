@@ -8,3 +8,4 @@ dist/
 version.txt
 *.spec
 .DS_Store
+user_files/

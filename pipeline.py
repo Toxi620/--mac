@@ -103,6 +103,10 @@ DEFAULT_LIKE_BOTTOM_RIGHT = (255, 143, 86)  # 点赞底部颜色右  #ff8f56
 DEFAULT_LIKE_TEXT_COLOR = (184, 168, 202)   # 点赞文字色      #b8a8ca
 GIF_MAX_BYTES = 8 * 1024 * 1024             # 单张 gif 超过即压缩
 
+# chang.png / fang.png 预览画板 上下渐变默认色（从 03/素材/chang.png 参考图采样）
+DEFAULT_PREVIEW_GRAD_TOP = (254, 250, 232)     # 上 #fefae8
+DEFAULT_PREVIEW_GRAD_BOTTOM = (236, 250, 254)  # 下 #ecfafe
+
 
 # ─── Phase A: 初始化 ─────────────────────────────────────────────
 
@@ -426,10 +430,48 @@ def paste_at(bg, overlay, x, y, w=None, h=None):
     return bg
 
 
+def _paste_over(bg, overlay, pos):
+    """把 overlay「盖」到 bg 上（支持负坐标，越界自动裁）。
+
+    不要用 `bg.paste(im, pos, im)`：PIL 的带 mask paste 是**逐通道插值**，会把 bg 的 alpha
+    也一起插值成半透明（`255*(1-m) + a*m` < 255）。导出的图在深色底/看图上就会露馅，
+    半透明的阴影会显得被加重。这里改成垫一层透明图层再 alpha_composite，语义等同 PS 的
+    「正常」叠加，结果 alpha 恒为 255；底图本来就透明的区域也照旧保持透明。
+    """
+    if overlay is None:
+        return bg
+    layer = Image.new('RGBA', bg.size, (0, 0, 0, 0))
+    layer.paste(overlay.convert('RGBA'), pos)
+    return Image.alpha_composite(bg.convert('RGBA'), layer)
+
+
+def _vertical_gradient(top, bottom, w, h):
+    """上→下渐变的长方形图 RGBA（chang.png / fang.png 画板背景）。"""
+    import numpy as np
+    arr = np.zeros((h, w, 4), dtype=np.uint8)
+    for y in range(h):
+        t = y / (h - 1) if h > 1 else 0.0
+        arr[y, :, 0] = int(top[0] + (bottom[0] - top[0]) * t)
+        arr[y, :, 1] = int(top[1] + (bottom[1] - top[1]) * t)
+        arr[y, :, 2] = int(top[2] + (bottom[2] - top[2]) * t)
+    arr[:, :, 3] = 255
+    return Image.fromarray(arr, 'RGBA')
+
+
 def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
                        edit_color, edit_text, edit_size, src_dir, user_dir,
-                       car_tag_color=None, car_tag_bg_color=None, car_text_color=None):
-    """生成 5 张商城轮播图，返回 {(文件名): Image}。"""
+                       car_tag_color=None, car_tag_bg_color=None, car_text_color=None,
+                       like_left=None, like_right=None, like_text=None,
+                       prev_top=None, prev_bottom=None,
+                       prev_chang=(0, 0, 0), prev_fang=(0, 0, 0)):
+    """生成 5 张商城轮播图 + chang/fang 预览画板，返回 {(文件名): Image}。
+
+    like_left/like_right/like_text：点赞三色（被赞动效.jpg 顶部图层用，None 回退默认）。
+    prev_top/prev_bottom：chang/fang 上下渐变色（None 回退默认）。
+    prev_chang/prev_fang：各自的 (偏移X, 偏移Y, 缩放) 微调，页面上的按钮调的。
+    键以 `_` 开头的（如 _被赞动效底图）是内部键，仅供 compose_like_gif 用，
+    服务端预览/导出时应跳过。
+    """
     from PIL import ImageFont, ImageDraw
 
     def load_src(n):
@@ -648,9 +690,45 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         return bg
     bg5 = img5()
     draw_edit_text(bg5)
+
+    # 干净底图（无点赞图层）给 compose_like_gif 用；键以 _ 开头 = 内部键，导出/预览跳过
+    result['_被赞动效底图'] = bg5.copy()
+
+    # 需求新增：最顶部叠加 点赞gif首帧 + 胶囊渐变 + 点赞文字（坐标同 compose_like_gif）
+    ll = like_left if like_left is not None else DEFAULT_LIKE_BOTTOM_LEFT
+    lrr = like_right if like_right is not None else DEFAULT_LIKE_BOTTOM_RIGHT
+    ltt = like_text if like_text is not None else DEFAULT_LIKE_TEXT_COLOR
+    like_gifp = load_user('预览页gif.png')
+    bg5 = _paste_over(bg5, like_gifp, (319, 1027))
+    mask_path = os.path.join(src_dir, '胶囊.png')
+    cap_native = Image.open(mask_path).convert('RGBA').size if os.path.isfile(mask_path) else (479, 84)
+    cap = _capsule_img(src_dir, ll, lrr, cap_native[0], cap_native[1])
+    bg5 = _paste_over(bg5, cap, (383, 1512))
+    ltxt = _load_like_text(src_dir, ltt)
+    bg5 = _paste_over(bg5, ltxt, (383, 1511))
+
     bg5_rgb = Image.new('RGB', bg5.size, (255, 255, 255))
     bg5_rgb.paste(bg5, mask=bg5.split()[3] if bg5.mode == 'RGBA' else None)
     result['被赞动效.jpg'] = bg5_rgb
+
+    # ---- (6) chang.png / fang.png 预览画板（上下渐变底 + 预览页gif，越界自动裁剪）----
+    gtop = prev_top if prev_top is not None else DEFAULT_PREVIEW_GRAD_TOP
+    gbot = prev_bottom if prev_bottom is not None else DEFAULT_PREVIEW_GRAD_BOTTOM
+    pv = load_user('预览页gif.png')
+
+    # fang.png 228×228：预览页gif 缩到 272×272，居中贴
+    bgf = _vertical_gradient(gtop, gbot, 228, 228)
+    if pv is not None:
+        pos, im = _preview_place(pv, 228, 228, 272, *prev_fang)
+        bgf = _paste_over(bgf, im, pos)
+    result['fang.png'] = bgf
+
+    # chang.png 510×264：预览页gif 缩到 328×328，居中贴
+    bgc = _vertical_gradient(gtop, gbot, 510, 264)
+    if pv is not None:
+        pos, im = _preview_place(pv, 510, 264, 328, *prev_chang)
+        bgc = _paste_over(bgc, im, pos)
+    result['chang.png'] = bgc
 
     return result
 
@@ -1715,6 +1793,25 @@ def _capsule_img(src_dir, left, right, w=206, h=84):
     return out
 
 
+def _preview_place(pv, board_w, board_h, target_w, dx=0, dy=0, scale=0):
+    """算预览页gif.png 贴到画板的 (位置, 缩放后图)，按 PS 那套流程：
+
+    1. 600×600 裁掉底部 108 → 600×492
+    2. 图像大小：按宽 600→target_w 等比缩放整张图（scale 是页面上按出来的 ±1px 微调）
+    3. 「红框」（原 600×600 的正中 360×360）缩放后的中心，对齐画板正中心
+
+    dx/dy：贴图位置偏移（px）；scale：缩放档位，直接加在目标宽上。
+    """
+    w, h = pv.size
+    canvas = pv.crop((0, 0, w, max(1, h - 108)))
+    target_w = max(1, int(target_w) + int(scale))
+    k = target_w / w
+    img = canvas.resize((target_w, max(1, round(canvas.size[1] * k))), Image.LANCZOS)
+    # 红框中心 = 原 600×600 的中心（裁底部不影响它，y=h/2 < 492）
+    fx, fy = (w / 2) * k, (h / 2) * k
+    return (int(round(board_w / 2 - fx)) + dx, int(round(board_h / 2 - fy)) + dy), img
+
+
 def _load_like_text(src_dir, color):
     """点赞文字.png（改颜色的/ 优先）染成 点赞文字色。"""
     for p in [os.path.join(src_dir, '改颜色的', '点赞文字.png'),
@@ -1915,7 +2012,8 @@ def compose_like_gif(static, like_left, like_right, like_text, src_dir, user_dir
     胶囊+文字透明度按 _like_alpha 随点赞gif帧走。preview_w 给预览宽（导出 None=全尺寸）。
     返回 {被赞动效.gif: bytes, db#hex.png: Image}（db 文件仍为 206×84 源图）。
     """
-    base = static['被赞动效.jpg'].convert('RGBA')
+    # 用干净底图（被赞动效.jpg 里已烧入点赞图层，直接叠会产生残影）
+    base = static.get('_被赞动效底图', static['被赞动效.jpg']).convert('RGBA')
     like = os.path.join(user_dir, '点赞.gif')
     db_img = _gradient_rect(like_left, like_right)                            # 206×84 长方形渐变（导出 db）
     mask_path = os.path.join(src_dir, '胶囊.png')

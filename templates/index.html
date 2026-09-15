@@ -97,6 +97,17 @@
     max-width: 100%; border-radius: 4px;
     border: 1px solid #eee;
   }
+  /* chang/fang：画板 + 各自底下那行微调按钮 */
+  .pv-block { min-width: 0; margin-bottom: 20px; }
+  /* 两块画板图统一高度（contain 不拉伸），下面的微调行才能对齐 */
+  .pv-block .preview-card img { height: 220px; width: auto; max-width: 100%; object-fit: contain; }
+  .pv-ctrl {
+    display: flex; gap: 4px; align-items: center; justify-content: center;
+    flex-wrap: wrap; margin-top: 6px;
+  }
+  .pv-ctrl .btn { padding: 2px 8px; font-size: 13px; line-height: 1.4; }
+  .pv-ctrl .hex { font-size: 12px; }
+  .pv-tag { font-size: 12px; font-weight: 600; color: #1d1d1f; }
   .loading { opacity: .4; pointer-events: none; }
   .spinner { display: inline-block; width: 14px; height: 14px;
     border: 2px solid #ccc; border-top-color: #007aff;
@@ -304,26 +315,8 @@
     </div>
   </div>
 
-  <div class="toolbar">
-    <input type="text" id="carEditText" placeholder="输入文字…" value="{{ st.get('编辑文字') or '' }}" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
-    <input type="number" id="carFontSize" value="{{ st.get('编辑字号') or 36 }}" min="12" max="120" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
-    <label style="font-size:13px;color:#666">字号</label>
-    <button class="btn btn-primary" id="btnExportCar" onclick="doExportCarousel()">📥 导出商城物料</button>
-  </div>
-
-  <div class="toolbar" style="margin-top:4px">
-    <div class="upload-group"><label data-upload-file="主页皮肤.png">⬆ 主页皮肤背景 <input type="file" accept=".png" onchange="uploadCarousel('主页皮肤.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="头像挂件.png">⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="方图.png">⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="star_001_mobile_new.png">⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="gua#ff5582.png">⬆ 气泡装饰 <input type="file" accept=".png" onchange="uploadCarousel('gua#ff5582.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="聊天头像.png">⬆ 聊天头像 <input type="file" accept=".png" onchange="uploadCarousel('聊天头像.png',this)"></label></div>
-  </div>
-
-  <div id="carouselStatus" class="status"></div>
-  <div class="previews" id="carouselPreviews"></div>
-
-  <div class="color-grid" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+  <!-- 点赞三色：紧随轮播色下方 -->
+  <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">👍 点赞动效</span>
     <div class="color-item">
       <div class="color-label">
@@ -346,6 +339,51 @@
       </div>
       <input type="color" id="carLikeText" value="{{ st.get('点赞文字色') or colors.点赞文字色 }}">
     </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="carEditText" placeholder="输入文字…" value="{{ st.get('编辑文字') or '' }}" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <input type="number" id="carFontSize" value="{{ st.get('编辑字号') or 36 }}" min="12" max="120" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+    <label style="font-size:13px;color:#666">字号</label>
+    <button class="btn btn-primary" id="btnExportCar" onclick="doExportCarousel()">📥 导出商城物料</button>
+  </div>
+
+  <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label data-upload-file="主页皮肤.png">⬆ 主页皮肤背景 <input type="file" accept=".png" onchange="uploadCarousel('主页皮肤.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="头像挂件.png">⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="方图.png">⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="star_001_mobile_new.png">⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="gua#ff5582.png">⬆ 气泡装饰 <input type="file" accept=".png" onchange="uploadCarousel('gua#ff5582.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="聊天头像.png">⬆ 聊天头像 <input type="file" accept=".png" onchange="uploadCarousel('聊天头像.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="预览页gif.png">⬆ 预览页gif <input type="file" accept=".png" onchange="uploadCarousel('预览页gif.png',this)"></label></div>
+  </div>
+
+  <div id="carouselStatus" class="status"></div>
+  <div class="previews" id="carouselPreviews"></div>
+
+  <!-- chang.png / fang.png 预览画板 + 右侧同行的上下渐变底色 -->
+  <div style="display:flex;gap:18px;align-items:flex-start;max-width:1180px;margin:0 auto">
+  <div style="flex:1;min-width:0">
+  <!-- 每块画板下面各自一行微调（↑↓←→ 各 1px + 缩放 ±1px），由 JS 渲染 -->
+  <div class="previews" id="carPreviewBoards" style="grid-template-columns:repeat(2,1fr);margin-top:10px"></div>
+  </div>
+  <div class="color-grid" style="display:flex;flex-direction:column;gap:10px;align-items:flex-start;margin-top:10px;flex:0 0 auto">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f">🖼 预览底色</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">上</span>
+        <span class="hex" id="hexCarPrevTop">{{ colors.预览底色上 }}</span>
+      </div>
+      <input type="color" id="carPrevTop" value="{{ st.get('预览底色上') or colors.预览底色上 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">下</span>
+        <span class="hex" id="hexCarPrevBottom">{{ colors.预览底色下 }}</span>
+      </div>
+      <input type="color" id="carPrevBottom" value="{{ st.get('预览底色下') or colors.预览底色下 }}">
+    </div>
+  </div>
   </div>
 
   <div class="toolbar" style="margin-top:4px">
@@ -662,6 +700,13 @@ const carLikeText = document.getElementById('carLikeText');
 const hexCarLikeL = document.getElementById('hexCarLikeL');
 const hexCarLikeR = document.getElementById('hexCarLikeR');
 const hexCarLikeText = document.getElementById('hexCarLikeText');
+const carPreviewBoards = document.getElementById('carPreviewBoards');
+const carPrevTop = document.getElementById('carPrevTop');
+const carPrevBottom = document.getElementById('carPrevBottom');
+// 预览页gif.png 在 chang/fang 里各自的微调：dx/dy 偏移(px)、s 缩放(±1px 一档)
+const carPv = { chang: { dx: 0, dy: 0, s: 0 }, fang: { dx: 0, dy: 0, s: 0 } };
+const hexCarPrevTop = document.getElementById('hexCarPrevTop');
+const hexCarPrevBottom = document.getElementById('hexCarPrevBottom');
 const carouselGifPreviews = document.getElementById('carouselGifPreviews');
 const carouselGifStatus = document.getElementById('carouselGifStatus');
 const btnExportGif = document.getElementById('btnExportGif');
@@ -772,6 +817,10 @@ function getCarouselColors() {
     点赞底部颜色左: carLikeL.value,
     点赞底部颜色右: carLikeR.value,
     点赞文字色: carLikeText.value,
+    预览底色上: carPrevTop.value,
+    预览底色下: carPrevBottom.value,
+    chang偏移X: carPv.chang.dx, chang偏移Y: carPv.chang.dy, chang缩放: carPv.chang.s,
+    fang偏移X: carPv.fang.dx, fang偏移Y: carPv.fang.dy, fang缩放: carPv.fang.s,
   };
 }
 
@@ -784,6 +833,9 @@ function updateCarouselHex() {
   hexCarLikeL.textContent = carLikeL.value;
   hexCarLikeR.textContent = carLikeR.value;
   hexCarLikeText.textContent = carLikeText.value;
+  hexCarPrevTop.textContent = carPrevTop.value;
+  hexCarPrevBottom.textContent = carPrevBottom.value;
+  updateCarPvCtrls();
   syncSwatches();
   // 气泡底框预置高亮
   document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
@@ -802,11 +854,16 @@ function _fetchCarousel() {
   .then(data => {
     if (data.ok) {
       carouselStatus.textContent = '✅ 预览已更新';
-      let html = '';
+      // chang.png / fang.png 是新的预览画板，单独一行渲染；其余进五张静态画板行
+      let html = '', htmlBoards = '';
       for (const [name, url] of Object.entries(data.previews)) {
-        html += `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+        const card = `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
+        if (name === 'chang.png' || name === 'fang.png') htmlBoards += pvBoardBlock(name, url);
+        else html += card;
       }
       carouselPreviews.innerHTML = html;
+      carPreviewBoards.innerHTML = htmlBoards;
+      updateCarPvCtrls();
     } else {
       carouselStatus.textContent = '❌ ' + (data.error || '生成失败');
     }
@@ -814,7 +871,63 @@ function _fetchCarousel() {
   .catch(() => { carouselStatus.textContent = '❌ 请求失败'; });
 }
 
+// chang/fang 各自的画板 + 底下那行微调按钮（↑↓←→ 各 1px，缩放 ±1px）
+function pvBoardBlock(name, url) {
+  const key = name.replace('.png', '');
+  return `<div class="pv-block">
+    <div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>
+    <div class="pv-ctrl" data-pv="${key}">
+      <span class="pv-tag">微调</span>
+      <button class="btn" data-act="up" title="上移1px">↑</button>
+      <button class="btn" data-act="down" title="下移1px">↓</button>
+      <button class="btn" data-act="left" title="左移1px">←</button>
+      <button class="btn" data-act="right" title="右移1px">→</button>
+      <span class="hex" data-role="off">0, 0</span>
+      <span class="pv-tag" style="margin-left:8px">缩放</span>
+      <button class="btn" data-act="zout" title="缩小1px">−</button>
+      <span class="hex" data-role="zoom">0</span>
+      <button class="btn" data-act="zin" title="放大1px">＋</button>
+      <button class="btn" data-act="reset" title="归零" style="margin-left:4px">重置</button>
+    </div>
+  </div>`;
+}
+
+// 把 carPv 里的值刷到那两行按钮上（画板还没渲染时就跳过）
+function updateCarPvCtrls() {
+  document.querySelectorAll('#carPreviewBoards .pv-ctrl').forEach(row => {
+    const st = carPv[row.dataset.pv];
+    if (!st) return;
+    row.querySelector('[data-role="off"]').textContent = st.dx + ', ' + st.dy;
+    row.querySelector('[data-role="zoom"]').textContent = (st.s > 0 ? '+' : '') + st.s;
+  });
+}
+
+// 点微调按钮：改 carPv → 刷静态画板（不重算 gif）→ 存状态
+carPreviewBoards.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const st = carPv[btn.closest('[data-pv]').dataset.pv];
+  switch (btn.dataset.act) {
+    case 'up': st.dy -= 1; break;
+    case 'down': st.dy += 1; break;
+    case 'left': st.dx -= 1; break;
+    case 'right': st.dx += 1; break;
+    case 'zin': st.s += 1; break;
+    case 'zout': st.s -= 1; break;
+    case 'reset': st.dx = 0; st.dy = 0; st.s = 0; break;
+  }
+  updateCarouselHex();
+  doCarouselStaticPreview();
+  saveState();
+});
+
 function doCarouselPreviewNow() { _fetchCarousel(); }
+
+// 只刷静态画板预览（不动 gif）
+function doCarouselStaticPreview() {
+  clearTimeout(carDebounce);
+  carDebounce = setTimeout(_fetchCarousel, 300);
+}
 
 function doCarouselPreview() {
   clearTimeout(carDebounce);
@@ -938,10 +1051,15 @@ carBg.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview()
 carWant.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carBubble.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carEdit.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
-carLikeL.addEventListener('input', () => { updateCarouselHex(); scheduleCarouselGif(); });
-carLikeR.addEventListener('input', () => { updateCarouselHex(); scheduleCarouselGif(); });
-carLikeText.addEventListener('input', () => { updateCarouselHex(); scheduleCarouselGif(); });
+// 点赞三色同时改 被赞动效.jpg（静态，含点赞gif/胶囊/文字）和 被赞动效.gif
+carLikeL.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carLikeR.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+carLikeText.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+// 预览底色只影响 chang/fang 静态画板，不碰耗时的 gif 生成
+carPrevTop.addEventListener('input', () => { updateCarouselHex(); doCarouselStaticPreview(); });
+carPrevBottom.addEventListener('input', () => { updateCarouselHex(); doCarouselStaticPreview(); });
 
+// 预览页gif 在 chang/fang 里的微调（每次 1px）
 // 气泡底框五选一：点预置色圆点 → 写入隐藏 input 并派发 input 事件
 document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
   b.addEventListener('click', () => {
@@ -1270,6 +1388,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (darkAuto.tag) colorTagDark.value = darkenHex(colorTag.value);
   if (darkAuto.bg) colorBgDark.value = darkenHex(colorBg.value);
   updateHex();
+  for (const k of ['chang', 'fang']) {
+    carPv[k].dx = parseInt(INITIAL_STATE[k + '偏移X']) || 0;
+    carPv[k].dy = parseInt(INITIAL_STATE[k + '偏移Y']) || 0;
+    carPv[k].s = parseInt(INITIAL_STATE[k + '缩放']) || 0;
+  }
   updateCarouselHex();  // 同步气泡底框预置高亮
   // 气泡宣传的文字色：hex 显示同步 + 色块颜色同步（值本身已由 Jinja 灌进 input）
   hexNpColor.textContent = colorNpText.value;

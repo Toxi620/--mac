@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 微博预览图配色工具 — 图像处理管线 + Flask Web GUI。三大功能模块：
 
 - **气泡预览图**: 聊天气泡颜色替换、点九拉伸、合成亮/暗双模式、商城展示图、引流位横幅
-- **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料
+- **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料 + 2 张预览画板 `chang.png`(510×264) / `fang.png`(228×228)（上下渐变底 + 用户上传 `预览页gif.png`；底色与各自的偏移/缩放网页上可调）
 - **商城动效 gif**: 在 5 张静态下新增「点赞动效」区 → 实时合成两张动效 `主页皮肤.gif` / `被赞动效.gif`（预览宽 360、导出全尺寸 1242），可调 点赞底部左/右、点赞文字色，上传 气泡框.gif / 皮肤封面.mp4 / 点赞.gif，导出 zip（两 gif + `db#<点赞文字色hex小写>.png`）。**mp4 解码与 gif 编码都依赖 ffmpeg/ffprobe**（打包时必须塞进 bundle）
 - **气泡预览图**: 470×470 画板，背景可上传；左右气泡沿用宣传素材（缩到 168 起），左气泡左上角 (72,90) 向右延长、右气泡右上角 (392,230) 向左延长；走 **iOS 点九逻辑**，文字竖直居中、苹方默认 38，可导出 PNG
 - **气泡宣传**（原「点九验证」改名）: 分 **安卓 / IOS 两套**预览（同一页上下两组，素材共用、点九逻辑独立）。安卓读 `left_.9.png`/`right_.9.png`（176×176 带黑边，**已冻结**），IOS 读同一份并自动去 1px 边框。**左右文案各自输入互不影响**，手动回车换行、超长自动折行（`#1234567`/纯数字整串不拆、英文按空格、中文逐字、带标点禁则）。安卓留白从**点九黑线框**往里量（右 左45\|30 / 右45\|25 / 上22 下28\|32；左 左63\|43 / 右35\|25），最宽 776；IOS 用**绝对坐标**（拉伸区第82格/第106格、文字区 左75右45 上63下68、最宽 905），并按**字形**对齐、不拉伸时文字居中。有独立取色器（不再跟随气泡预览）。可导出 zip（全尺寸 `左气泡.png` / `右气泡.png`）
@@ -48,8 +48,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 5. Phase E: 商城展示图 420×174（气泡 + 文字叠加预览版）
 6. Phase F: 引流位横幅 366×204（渐变背景 + 气泡 + wz_3 文字）
 
-**轮播管线 `_generate_carousel()`** — 5 张图：
+**轮播管线 `_generate_carousel()`** — 5 张图 + 2 张预览画板：
 签名含 `edit_size`（可调字号），文字加载优先 `fonts/PingFang.ttf`，回退系统字体
+
+新增参数（服务端统一由 `_carousel_and_like_params()` 解析，4 个调用点共用）：
+`like_left/like_right/like_text`（点赞三色）、`prev_top/prev_bottom`（chang/fang 上下渐变底色）、
+`prev_chang=(dx,dy,scale)` / `prev_fang=(dx,dy,scale)`（两块画板各自的 1px 微调）
+- 返回字典里**键以 `_` 开头的是内部键**（如 `_被赞动效底图`），仅供 `compose_like_gif` 用；`/generate_carousel` 与 `/export_carousel` 都要 `if name.startswith('_'): continue` 跳过
+- `_被赞动效底图` = **没叠点赞图层**的干净 bg5。`compose_like_gif` 必须用它当底：`被赞动效.jpg` 里已经烧进了点赞首帧，再叠一遍会出残影
+- 末尾追加 `chang.png` / `fang.png`：`_vertical_gradient(上,下,w,h)` 铺底 → `_preview_place()` 算位置 → `_paste_over()` 盖章。素材是用户上传的 `预览页gif.png`（`load_user`），没有就只出渐变底
+
+**`_preview_place(pv, board_w, board_h, target_w, dx=0, dy=0, scale=0)`** — 按 PS 那套流程还原：
+1. 600×600 裁掉底部 108 → 600×492
+2. 按宽 600→`target_w` 等比缩放整张（`scale` 是网页上按出来的 ±1px，直接加在目标宽上）
+3. 「红框」（原 600×600 的正中 360×360）缩放后的中心对齐画板正中心
+`dx/dy` 再叠位移；返回 `((x, y), 缩放后的图)`，负坐标由 `_paste_over` 自动裁
+
+**`_paste_over(bg, overlay, pos)`** — 带透明地「盖」到 bg 上（支持负坐标）。
+**不要用 `bg.paste(im, pos, im)`**：PIL 带 mask 的 paste 是**逐通道插值**，会把 bg 的 alpha 也插成
+`255*(1-m)+a*m` < 255 —— 导出的画板在深色底上看，半透明阴影会显得被加重。改成垫透明图层再
+`Image.alpha_composite`，语义等同 PS「正常」叠加，alpha 恒 255。
+⚠️ 只给 chang/fang 用；`paste_at()` 保持原样，因为 `卡片背景.png`/`评论气泡.png`/`聊天气泡.png` 依赖原来的透明语义
 
 **动效 gif（阶段二，pipeline.py 尾部）**：
 - `compose_home_gif(static, user_dir, preview_w=None)` — 主页皮肤.gif：皮肤封面mp4 等比缩放到同宽1242 铺底 → 主页皮肤.png(实时) → 气泡框.gif 定尺寸 257×276 @(12,558)；总长/帧率以 mp4 为准（fps 来自 ffprobe）
@@ -66,7 +85,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `GET /` 首页（渲染 index.html）
   - `GET /state` 读存档 + 已上传素材清单；`POST /state` 保存存档（临时文件 + `os.replace` 原子写）
   - `POST /generate` 气泡预览缩略图；`POST /export` 导出气泡高清 ZIP
-  - `POST /generate_carousel` 轮播预览；`POST /export_carousel` 导出商城物料 ZIP
+  - `POST /generate_carousel` 轮播预览（跳过 `_` 内部键，宽 >600 的等比缩到 600）；`POST /export_carousel` 导出商城物料 ZIP
+    - ZIP 结构：**根** = 5 张静态画板（`主页皮肤.png`/`卡片背景.png`/`聊天背景.png`/`被赞动效.jpg`/`评论气泡.png`）+ **`11被赞动效/`** = `chang.png` + `fang.png` + `db#<点赞文字色hex小写>.png`（206×84 纯渐变，从导出 gif 挪到这里）
+    - 写 `11被赞动效/` 前先清掉旧的 `db#*.png`——点赞文字色一变就是新文件名，不清会在 zip 里叠出好几份
+  - 两个轮播接口的入参都由 **`_carousel_and_like_params(data)`** 统一解析（颜色 + 编辑文字/字号 + 点赞三色 + `预览底色上/下` + `chang偏移X/Y/缩放` + `fang偏移X/Y/缩放` → 打包成 `pvc`/`pvf` 两个三元组），加参数只改这一处
   - `POST /generate_gif` 动效预览（全宽360 两 gif 一并返回）；`POST /export_gif` 导出 动效物料.zip（两 gif 全尺寸 + db#.png）
   - `POST /generate_promo` 气泡宣传预览（参数：左文字/右文字/字号/文字色/**ios**；`ios=true` 走 IOS 那套逻辑）；`POST /export_promo` 导出 zip（`气泡宣传.zip` / `气泡宣传IOS.zip`，IOS 的图名带 `_IOS`）
   - `POST /upload_carousel` 轮播素材上传（name 白名单，含 头像挂件/方图/star/gua/主页皮肤/聊天头像 + 动效三样 气泡框.gif/皮肤封面.mp4/点赞.gif）；`POST /upload_bubble` 气泡素材上传（left/right/bg_0/bg_1）
@@ -144,7 +166,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **自定义取色面板**：点色块弹出面板，hex 输入为主（顶部大输入框 + 色相条 + 饱和度方块 + R/G/B 次级 + 底部「💧 吸管 | 完成」）；原生 `<input type="color">` 已隐藏——浏览器原生取色器默认显示 RGB，且无法用网页代码修改其显示格式
 - **吸管取色**：优先 `window.EyeDropper`（Chrome/Edge，可吸整个屏幕）；不可用时回退 `getDisplayMedia` 截当前标签页 → 全屏 `<img id="cpEyeLayer">` 覆盖层点哪取哪（Firefox/Safari）。吸管激活时 `cpEyeOn` 会挡掉「点面板外关闭」、`body.cp-eyedrop` 全局十字光标；Esc 或再点按钮取消
 - 13 个颜色共用同一个取色面板，JS 自动为每个 `input[type=color]` 生成色块按钮（`.cp-swatch`）并同步颜色；改色通过给隐藏 input 派发 `input` 事件驱动原有监听（暗色自动跟随、实时预览）
-- **商城轮播页自上而下**：轮播色 grid（多 点赞底部颜色左/右/点赞文字色 3 项，色板自动生成）→ 编辑行 → 上传行 → `#carouselPreviews`（5 张静态）→ `#carouselGifPreviews`（2 列动效，inline `max-width:760px` 可调宽）；动效/上传/改色走 `doCarouselPreview()` → `scheduleCarouselGif()` 去抖调 `/generate_gif`（busy 锁防并发，预览全宽 360）
+- **商城轮播页自上而下**：轮播色 grid（多 点赞底部颜色左/右/点赞文字色 3 项，色板自动生成）→ 编辑行 → 上传行 → `#carouselPreviews`（5 张静态）→ 虚线分隔 → 一行 flex：左边 `#carPreviewBoards`（chang/fang 两块画板，`grid-template-columns:repeat(2,1fr);margin-top:10px`）+ 右边「🖼 预览底色」面板（上/下两个色块，`margin-top:10px` 与画板顶对齐）→ `#carouselGifPreviews`（2 列动效，inline `max-width:760px` 可调宽）；动效/上传/改色走 `doCarouselPreview()` → `scheduleCarouselGif()` 去抖调 `/generate_gif`（busy 锁防并发，预览全宽 360）
+- **chang/fang 各自的微调行**：`pvBoardBlock(name, url)` 渲染成 `.pv-block` = 画板卡片 + 一行 `.pv-ctrl`（↑↓←→ 各 1px、`−/＋` 缩放 1px、重置）。状态在 `carPv = {chang:{dx,dy,s}, fang:{...}}`
+  - ⚠️ 画板卡片每次刷新都整个重建，所以监听**必须用事件委托**挂在 `#carPreviewBoards` 上（`e.target.closest('[data-act]')`），不能挨个绑按钮
+  - 状态键：`chang偏移X/Y/缩放`、`fang偏移X/Y/缩放`（存 `state.json`，`INITIAL_STATE` 里回读）
+  - 点微调按钮 → 改 `carPv` → `updateCarouselHex()` 刷数字 → `doCarouselStaticPreview()`（**只重画静态，不重算 gif**）→ `saveState()`
+  - `.pv-block` 统一给画板图 `height:220px`（`object-fit:contain` 不拉伸）→ 两块画板高对齐，下面两行按钮才齐；`.pv-block` 底部留 `margin-bottom:20px`
 - **气泡宣传页自上而下**：独立取色器 `colorNpText` → 素材上传行（`.promo-upload`，安卓/iOS 共用）→ 安卓那组（左/右 textarea + 字号 + 导出 + `#ninepatchPreviews`）→ 虚线分隔 → **IOS 那组**（`npTextLIos` / `npTextRIos` / `npFontSizeIos` / `#ninepatchPreviewsIos`）。两组各自去抖 300ms 调 `/generate_promo`（IOS 带 `ios:true`），改共享的文字色会**两套一起刷**
 - **⚠️ 两个易踩的坑**（都修过）：
   1. **去抖计时器必须先声明**：`switchTab()` 里 `clearTimeout(npDebounce)`，若 `let npDebounce` 写在 `switchTab` **后面**，进页面时切到气泡宣传页会撞 TDZ 抛 `ReferenceError` → **整个初始化中断、预览不渲染**（要动一下输入框才出来）。计时器声明统一提到 `switchTab` 之前
@@ -213,7 +240,7 @@ python -m PyInstaller --onefile -w --distpath . --add-data "templates;templates"
 - **气泡底框五选一**: `气泡底框颜色`（`CAROUSEL_BUBBLE_PRESETS`）改为预置 5 色 `#FF8F56/#FEAD3A/#DEC84C/#A55DAB/#D04666`，前端渲染为圆点选择器（`.preset-swatch`），默认 `#FF8F56`；该颜色同时作用于 pic1.png 与评论气泡底色1/2
 - **苹方字体必须打包**: GitHub Actions macOS 无 PingFang，需下载/预置 `fonts/PingFang.ttf`，用 `--add-data "fonts;fonts"` 打进包
 - **Windows 打包素材路径**: 轮播素材必须用 `--add-data "原素材;原素材"`（打进 `_MEIPASS/原素材`），不要用 `../02/原素材;02/原素材`——frozen 后 `_get_carousel_dir()` 只找 `_MEIPASS/原素材`；字体也不能漏（`fonts;fonts`）
-- **PIL paste 不带 mask**: `result.paste(p, (x, y))` 保持 alpha。`result.paste(img, pos, img)` 会稀释半透明像素
+- **PIL paste 不带 mask**: `result.paste(p, (x, y))` 保持 alpha。`result.paste(img, pos, img)` 会**稀释底图 alpha**（`255*(1-m)+a*m`），导出的图在深色底上会显出「阴影被加重」——要盖图上透明就用 **`_paste_over()`**
 - **composite_scene**: 末尾强制 `arr[:,:,3]=255`
 - **darken_overlay**: 阈值 alpha>200，半透明边缘不动
 - **首次打开 Mac 包**: 右键 → 打开 → 仍要打开
@@ -222,3 +249,6 @@ python -m PyInstaller --onefile -w --distpath . --add-data "templates;templates"
 - **动效 gif 尺寸**: 预览宽 360 + 抽帧（主页≤12、点赞≤16）；导出全尺寸 1242，单文件超 8MB 自动“降色+抽帧减半”压缩
 - **阶段二新素材（从 `d:\微博预览图\03\` 拷入 原素材）**: `图层 1086.png`/`评论放大.png`/`图层 1088.png`/`1.png`(42×42)→原素材根目录；`胶囊.png`→原素材根目录；`点赞文字.png`→原素材/改颜色的/（合成时染点赞文字色）；头像上传=用户 `聊天头像.png` 存 USER_DATA_DIR，合成时裁透明边→圆形内切 wh 贴（坐标锚点=外接正方形左上角）
 - **评论页叠层**（img3）：旧组件保留，然后严格按需求文本顺序自下而上叠（头像→评论放大→头像→图层1088），会有遮挡属预期
+- **⚠️ 导出目录名对不上**：需求文本（`03/替换头像.txt`）写的是 **`11被赞动态`**，代码里是 **`11被赞动效`**（`server.py` 的 `sub_dir`）。两边说好统一哪个再改，别单方面重命名（下游可能已经按现有名字接了）
+- **chang/fang 的来源**：`chang.png` = 510×264 画板、`fang.png` = 228×228 画板，素材都是**用户上传的 `预览页gif.png`**（USER_DATA_DIR），`原素材/` 里没有；没传就只输出渐变底
+- **预览底色上/下**（`DEFAULT_PREVIEW_GRAD_TOP`=`#fefae8` / `_BOTTOM`=`#ecfafe`）只影响 chang/fang 这两张静态画板，改它**不需要重算 gif**（前端走 `doCarouselStaticPreview()`）
