@@ -675,16 +675,14 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
     result['聊天气泡.png'] = make_with_text(img4)
 
     # ---- (5) 卡片背景.png → 被赞动效.jpg ----
+    # 画板更新：不叠 头像+挂件、顶部装饰（其余与卡片背景页一致）
     def img5():
         bg = apply_base(load_src('卡片背景.png'))
-        bg = paste_at(bg, load_user('头像挂件.png'), 33, 310, 135, 143)
         bg = paste_at(bg, load_src('V标.png'), 131, 408)
         bg = paste_at(bg, load_user('方图.png'), 43, 644, 572, 573)
-        bg = paste_at(bg, load_user('star_001_mobile_new.png'), 834, 288, 282, 125)
         bg = paste_at(bg, load_color('我也想要！.png', want_color), 191, 1761)
         bg = paste_at(bg, load_color('pic1.png', bubble_bg_color), 169, 1744)
-        # 需求新增：用户聊天头像(圆形)+1.png（与卡片背景页一致）
-        bg = paste_avatar(bg, 37, 1679, 118)
+        # 画板更新：不叠用户聊天头像（1.png 小标保留）
         bg = paste_at(bg, load_src('1.png'), 111, 1754)
         bg = paste_at(bg, load_color('5.png', text_color), 507, 2120)
         return bg
@@ -1544,10 +1542,11 @@ def main(text_color=None, tag_color=None, tag_bg_color=None,
     print("  → left_night.png / right_night.png (borderless)")
     imgs["商城6字展示420X174"].save(os.path.join(DIR_COVER, '商城6字展示420X174.png'))
     print("  → 商城6字展示420X174.png")
-    # 带文字的预览图，放输出根目录（zip 最外层，与 封面/效果 等文件夹同级）
-    imgs["商城6字展示420X174(预览)"].save(
-        os.path.join(OUTPUT_DIR, '商城6字展示420X174(预览).png'))
-    print("  → 商城6字展示420X174(预览).png")
+    # 带文字的预览版已不再导出；顺手删掉上次导出的残留（导出 zip 是整目录打包，不删会混进去）
+    stale_shop_prev = os.path.join(OUTPUT_DIR, '商城6字展示420X174(预览).png')
+    if os.path.exists(stale_shop_prev):
+        os.remove(stale_shop_prev)
+        print("  → 已清理旧版 商城6字展示420X174(预览).png")
     if imgs["引流位banner"]:
         imgs["引流位banner"].save(os.path.join(DIR_COVER, '引流位banner.png'))
         print("  → 引流位banner.png")

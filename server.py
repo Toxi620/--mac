@@ -189,16 +189,22 @@ def export_full():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-    # 打包 output 文件夹为 ZIP
+    # 只打包气泡预览页的产物（商城/动效等其它模块的输出目录不混进来）
     import zipfile, io as io2
     zip_buf = io2.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         output_dir = pipeline.OUTPUT_DIR
-        for root, dirs, files in os.walk(output_dir):
-            for f in files:
+        for sub in ['效果', '封面', 'ios', '安卓']:
+            root = os.path.join(output_dir, sub)
+            if not os.path.isdir(root):
+                continue
+            for f in os.listdir(root):
                 fp = os.path.join(root, f)
-                arcname = os.path.relpath(fp, output_dir)
-                zf.write(fp, arcname)
+                if os.path.isfile(fp):
+                    zf.write(fp, f"{sub}/{f}")
+        docx = os.path.join(output_dir, '代码文档.docx')
+        if os.path.isfile(docx):
+            zf.write(docx, '代码文档.docx')
     zip_buf.seek(0)
     return send_file(zip_buf, mimetype="application/zip",
                      as_attachment=True, download_name="12聊天气泡.zip")
@@ -358,7 +364,7 @@ def upload_preview_bg():
 
 @app.route("/export_carousel", methods=["POST"])
 def export_carousel():
-    """导出商城轮播图物料 ZIP：根 = 5 张静态画板；11被赞动效/ = chang + db#色值 + fang"""
+    """导出商城轮播图物料 ZIP：根 = 4 张静态画板（被赞相关拆到 /export_like）"""
     p = _carousel_and_like_params(request.get_json())
     try:
         imgs = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
@@ -366,18 +372,21 @@ def export_carousel():
                                            p['tag_c'], p['tag_bg_c'], p['btc'],
                                            p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
         out_dir = pipeline.CAROUSEL_OUTPUT_DIR
-        sub_dir = os.path.join(out_dir, '11被赞动效')
-        os.makedirs(sub_dir, exist_ok=True)
-        # 点赞文字色变了会生成新文件名，先清掉旧 db#*.png 避免 zip 里混入多份
-        for old in os.listdir(sub_dir):
-            if old.startswith('db#') and old.endswith('.png'):
-                os.remove(os.path.join(sub_dir, old))
+        os.makedirs(out_dir, exist_ok=True)
+        # 被赞相关已拆到「被赞预览」导出，清掉旧版残留（zip 是整目录打包，不删会混进去）
+        stale_names = ['被赞动效.jpg', 'chang.png', 'fang.png']
+        for old in os.listdir(out_dir):
+            fp = os.path.join(out_dir, old)
+            if old in stale_names and os.path.isfile(fp):
+                os.remove(fp)
+            elif old == '11被赞动效' and os.path.isdir(fp):
+                import shutil
+                shutil.rmtree(fp)
         for name, img in imgs.items():
             if name.startswith('_'):
                 continue  # 内部键不导出
-            if name in ('chang.png', 'fang.png'):
-                img.save(os.path.join(sub_dir, name), format='PNG')
-                continue
+            if name in ('被赞动效.jpg', 'chang.png', 'fang.png'):
+                continue  # 移到 /export_like
             save_fmt = 'JPEG' if name.endswith('.jpg') else 'PNG'
             if img.mode == 'RGBA':
                 flat = Image.new('RGB', img.size, (255, 255, 255))
@@ -385,10 +394,6 @@ def export_carousel():
                 flat.save(os.path.join(out_dir, name), format='PNG')
             else:
                 img.save(os.path.join(out_dir, name), format=save_fmt)
-        # db#<点赞文字色hex小写>.png（206×84 左右渐变，从导出gif移到这里）
-        dbname = 'db#' + ''.join('%02x' % c for c in p['lt']) + '.png'
-        pipeline._gradient_rect(p['ll'], p['lr']).save(
-            os.path.join(sub_dir, dbname), format='PNG')
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -403,6 +408,42 @@ def export_carousel():
     zip_buf.seek(0)
     return send_file(zip_buf, mimetype="application/zip",
                      as_attachment=True, download_name="商城预览物料.zip")
+
+
+@app.route("/export_like", methods=["POST"])
+def export_like():
+    """被赞预览导出 ZIP：被赞动效.jpg + chang.png + fang.png + db#<点赞文字色hex小写>.png"""
+    import zipfile
+    p = _carousel_and_like_params(request.get_json())
+    try:
+        imgs = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
+                                           p['et'], p['es'], p['src'], p['ud'],
+                                           p['tag_c'], p['tag_bg_c'], p['btc'],
+                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
+        dbname = 'db#' + ''.join('%02x' % c for c in p['lt']) + '.png'
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for name in ('被赞动效.jpg', 'chang.png', 'fang.png'):
+                img = imgs[name]
+                buf = io.BytesIO()
+                if name.endswith('.jpg'):
+                    if img.mode == 'RGBA':
+                        flat = Image.new('RGB', img.size, (255, 255, 255))
+                        flat.paste(img, mask=img.split()[3])
+                        img = flat
+                    img.save(buf, format='JPEG', quality=95)
+                else:
+                    img.save(buf, format='PNG')
+                zf.writestr(name, buf.getvalue())
+            # db#<点赞文字色hex小写>.png（206×84 左右渐变）
+            buf = io.BytesIO()
+            pipeline._gradient_rect(p['ll'], p['lr']).save(buf, format='PNG')
+            zf.writestr(dbname, buf.getvalue())
+        zip_buf.seek(0)
+        return send_file(zip_buf, mimetype="application/zip",
+                         as_attachment=True, download_name="11被赞动效.zip")
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 def _carousel_and_like_params(data):

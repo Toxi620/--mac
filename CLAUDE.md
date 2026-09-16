@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 微博预览图配色工具 — 图像处理管线 + Flask Web GUI。三大功能模块：
 
 - **气泡预览图**: 聊天气泡颜色替换、点九拉伸、合成亮/暗双模式、商城展示图、引流位横幅
-- **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料 + 2 张预览画板 `chang.png`(510×264) / `fang.png`(228×228)（上下渐变底 + 用户上传 `预览页gif.png`；底色与各自的偏移/缩放网页上可调）
+- **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料（导出只含其中 4 张，被赞相关拆到「被赞预览」）
+- **被赞预览**（独立标签页）: 展示 `被赞动效.jpg` + 预览画板 `chang.png`(510×264) / `fang.png`(228×228)（上下渐变底 + 用户上传 `预览页gif.png`；底色与各自的偏移/缩放网页上可调）。轮播色/点赞三色/编辑文字输入框与商城轮播**共用同一套值**（克隆控件写回主控件）；导出 `11被赞动效.zip` = 被赞动效.jpg + chang.png + fang.png + `db#<点赞文字色hex小写>.png`
 - **商城动效 gif**: 在 5 张静态下新增「点赞动效」区 → 实时合成两张动效 `主页皮肤.gif` / `被赞动效.gif`（预览宽 360、导出全尺寸 1242），可调 点赞底部左/右、点赞文字色，上传 气泡框.gif / 皮肤封面.mp4 / 点赞.gif，导出 zip（两 gif + `db#<点赞文字色hex小写>.png`）。**mp4 解码与 gif 编码都依赖 ffmpeg/ffprobe**（打包时必须塞进 bundle）
 - **气泡预览图**: 470×470 画板，背景可上传；左右气泡沿用宣传素材（缩到 168 起），左气泡左上角 (72,90) 向右延长、右气泡右上角 (392,230) 向左延长；走 **iOS 点九逻辑**，文字竖直居中、苹方默认 38，可导出 PNG
 - **气泡宣传**（原「点九验证」改名）: 分 **安卓 / IOS 两套**预览（同一页上下两组，素材共用、点九逻辑独立）。安卓读 `left_.9.png`/`right_.9.png`（176×176 带黑边，**已冻结**），IOS 读同一份并自动去 1px 边框。**左右文案各自输入互不影响**，手动回车换行、超长自动折行（`#1234567`/纯数字整串不拆、英文按空格、中文逐字、带标点禁则）。安卓留白从**点九黑线框**往里量（右 左45\|30 / 右45\|25 / 上22 下28\|32；左 左63\|43 / 右35\|25），最宽 776；IOS 用**绝对坐标**（拉伸区第82格/第106格、文字区 左75右45 上63下68、最宽 905），并按**字形**对齐、不拉伸时文字居中。有独立取色器（不再跟随气泡预览）。可导出 zip（全尺寸 `左气泡.png` / `右气泡.png`）
@@ -50,6 +51,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **轮播管线 `_generate_carousel()`** — 5 张图 + 2 张预览画板：
 签名含 `edit_size`（可调字号），文字加载优先 `fonts/PingFang.ttf`，回退系统字体
+`img5()`（被赞动效.jpg 画板）**不叠** 头像+挂件、顶部装饰（其余图层与卡片背景页一致）
 
 新增参数（服务端统一由 `_carousel_and_like_params()` 解析，4 个调用点共用）：
 `like_left/like_right/like_text`（点赞三色）、`prev_top/prev_bottom`（chang/fang 上下渐变底色）、
@@ -86,8 +88,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `GET /state` 读存档 + 已上传素材清单；`POST /state` 保存存档（临时文件 + `os.replace` 原子写）
   - `POST /generate` 气泡预览缩略图；`POST /export` 导出气泡高清 ZIP
   - `POST /generate_carousel` 轮播预览（跳过 `_` 内部键，宽 >600 的等比缩到 600）；`POST /export_carousel` 导出商城物料 ZIP
-    - ZIP 结构：**根** = 5 张静态画板（`主页皮肤.png`/`卡片背景.png`/`聊天背景.png`/`被赞动效.jpg`/`评论气泡.png`）+ **`11被赞动效/`** = `chang.png` + `fang.png` + `db#<点赞文字色hex小写>.png`（206×84 纯渐变，从导出 gif 挪到这里）
-    - 写 `11被赞动效/` 前先清掉旧的 `db#*.png`——点赞文字色一变就是新文件名，不清会在 zip 里叠出好几份
+    - ZIP 结构：**根** = 4 张静态画板（`主页皮肤.png`/`卡片背景.png`/`聊天气泡.png`/`评论气泡.png`）；被赞相关（被赞动效.jpg/chang/fang/db#）已拆到 `/export_like`
+    - 导出前清残留：删 out_dir 里的 `被赞动效.jpg`/`chang.png`/`fang.png` 和 `11被赞动效/` 整个文件夹（旧版导出产物不删会混进 zip）
+  - `POST /export_like` 被赞预览导出：`11被赞动效.zip` = 根下 4 个文件（`被赞动效.jpg` + `chang.png` + `fang.png` + `db#<点赞文字色hex小写>.png` 206×84 左右渐变），纯内存打包（参考 export_promo）不落盘
   - 两个轮播接口的入参都由 **`_carousel_and_like_params(data)`** 统一解析（颜色 + 编辑文字/字号 + 点赞三色 + `预览底色上/下` + `chang偏移X/Y/缩放` + `fang偏移X/Y/缩放` → 打包成 `pvc`/`pvf` 两个三元组），加参数只改这一处
   - `POST /generate_gif` 动效预览（全宽360 两 gif 一并返回）；`POST /export_gif` 导出 动效物料.zip（两 gif 全尺寸 + db#.png）
   - `POST /generate_promo` 气泡宣传预览（参数：左文字/右文字/字号/文字色/**ios**；`ios=true` 走 IOS 那套逻辑）；`POST /export_promo` 导出 zip（`气泡宣传.zip` / `气泡宣传IOS.zip`，IOS 的图名带 `_IOS`）
@@ -166,7 +169,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **自定义取色面板**：点色块弹出面板，hex 输入为主（顶部大输入框 + 色相条 + 饱和度方块 + R/G/B 次级 + 底部「💧 吸管 | 完成」）；原生 `<input type="color">` 已隐藏——浏览器原生取色器默认显示 RGB，且无法用网页代码修改其显示格式
 - **吸管取色**：优先 `window.EyeDropper`（Chrome/Edge，可吸整个屏幕）；不可用时回退 `getDisplayMedia` 截当前标签页 → 全屏 `<img id="cpEyeLayer">` 覆盖层点哪取哪（Firefox/Safari）。吸管激活时 `cpEyeOn` 会挡掉「点面板外关闭」、`body.cp-eyedrop` 全局十字光标；Esc 或再点按钮取消
 - 13 个颜色共用同一个取色面板，JS 自动为每个 `input[type=color]` 生成色块按钮（`.cp-swatch`）并同步颜色；改色通过给隐藏 input 派发 `input` 事件驱动原有监听（暗色自动跟随、实时预览）
-- **商城轮播页自上而下**：轮播色 grid（多 点赞底部颜色左/右/点赞文字色 3 项，色板自动生成）→ 编辑行 → 上传行 → `#carouselPreviews`（5 张静态）→ 虚线分隔 → 一行 flex：左边 `#carPreviewBoards`（chang/fang 两块画板，`grid-template-columns:repeat(2,1fr);margin-top:10px`）+ 右边「🖼 预览底色」面板（上/下两个色块，`margin-top:10px` 与画板顶对齐）→ `#carouselGifPreviews`（2 列动效，inline `max-width:760px` 可调宽）；动效/上传/改色走 `doCarouselPreview()` → `scheduleCarouselGif()` 去抖调 `/generate_gif`（busy 锁防并发，预览全宽 360）
+- **商城轮播页自上而下**：轮播色 grid（多 点赞底部颜色左/右/点赞文字色 3 项，色板自动生成）→ 编辑行 → 上传行（预览页gif 上传已移到被赞预览页）→ `#carouselPreviews`（4 张静态）→ `#carouselGifPreviews`（2 列动效，inline `max-width:760px` 可调宽）；动效/上传/改色走 `doCarouselPreview()` → `scheduleCarouselGif()` 去抖调 `/generate_gif`（busy 锁防并发，预览全宽 360）。**gif 只在商城轮播页刷**：`doCarouselPreview` 里 `currentTab==='carousel'` 才 `scheduleCarouselGif()`，在被赞页调色不烧 ffmpeg，切回来时 `switchTab` 自动补刷
+- **被赞预览页自上而下**：轮播色 grid 副本 → 点赞动效三色副本 → 编辑行（含「📥 导出」= `/export_like`）→ 上传行（方图/预览页gif）→ `#likeBoardsWrap` grid：`'like chang panel' / 'like fang panel'`（左 `#likePreviews` 被赞动效.jpg 跨两行；中 chang 上、fang 下同宽，各带微调行；右「🖼 预览底色」面板）。微调按钮事件委托挂 `#likeBoardsWrap` 上
+- **被赞预览的克隆控件**：轮播色/点赞三色/编辑文字是商城轮播控件的**副本**（`lkBg`/`lkText`/…，映射表 `LK_CLONES`），值共用同一套存档键。克隆 `input` → 写回主控件（`carBg` 等）→ `dispatchEvent('input')` 走主控件原有链路 → `syncLikeClones()` 把所有克隆刷齐；进被赞页时 `switchTab` 也调一次 `syncLikeClones()`。⚠️ 初始化时先 `syncLikeClones()` 再 `buildSwatches()`，色块首帧颜色才对
 - **chang/fang 各自的微调行**：`pvBoardBlock(name, url)` 渲染成 `.pv-block` = 画板卡片 + 一行 `.pv-ctrl`（↑↓←→ 各 1px、`−/＋` 缩放 1px、重置）。状态在 `carPv = {chang:{dx,dy,s}, fang:{...}}`
   - ⚠️ 画板卡片每次刷新都整个重建，所以监听**必须用事件委托**挂在 `#carPreviewBoards` 上（`e.target.closest('[data-act]')`），不能挨个绑按钮
   - 状态键：`chang偏移X/Y/缩放`、`fang偏移X/Y/缩放`（存 `state.json`，`INITIAL_STATE` 里回读）

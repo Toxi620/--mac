@@ -177,6 +177,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div style="display:inline-flex;width:fit-content;border:1px solid #ddd;border-radius:8px;overflow:hidden">
       <button id="tabBubble" onclick="switchTab('bubble')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#007aff;color:#fff;font-weight:500;white-space:nowrap">🫧 气泡预览</button>
+      <button id="tabLike" onclick="switchTab('like')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">✨ 被赞预览</button>
       <button id="tabCarousel" onclick="switchTab('carousel')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🛒 商城轮播</button>
       <button id="tabNinepatch" onclick="switchTab('ninepatch')" style="padding:8px 20px;border:none;cursor:pointer;font-size:14px;background:#f5f5f7;color:#666;white-space:nowrap">🫧 气泡宣传</button>
     </div>
@@ -268,6 +269,117 @@
   <div class="previews" id="previews"></div>
 </div>
 
+<!-- ======== 被赞预览面板（轮播色/点赞三色/文字 与商城轮播共用一套值） ======== -->
+<div id="likePanel" style="display:none">
+  <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">🎨 轮播色</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">底框</span>
+        <span class="hex" id="hexLkBg">{{ colors.底框颜色 }}</span>
+      </div>
+      <input type="color" id="lkBg" value="{{ st.get('底框颜色') or colors.底框颜色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">文字色</span>
+        <span class="hex" id="hexLkText">{{ colors.轮播文字色 }}</span>
+      </div>
+      <input type="color" id="lkText" value="{{ st.get('轮播文字色') or colors.轮播文字色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">编辑字色</span>
+        <span class="hex" id="hexLkEdit">{{ colors.编辑字色 }}</span>
+      </div>
+      <input type="color" id="lkEdit" value="{{ st.get('编辑字色') or colors.编辑字色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">气泡底框</span>
+        <span class="hex" id="hexLkBubble">{{ colors.气泡底框颜色 }}</span>
+      </div>
+      <div class="bubble-presets" id="lkBubblePresets">
+        {% for c in colors.气泡底框预置色 %}
+        <button type="button" class="preset-swatch" data-color="{{ c }}" style="background:{{ c }}" title="{{ c }}"></button>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="lkBubble" value="{{ st.get('气泡底框颜色') or colors.气泡底框颜色 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">我也想要</span>
+        <span class="hex" id="hexLkWant">{{ colors.我也想要颜色 }}</span>
+      </div>
+      <input type="color" id="lkWant" value="{{ st.get('我也想要颜色') or colors.我也想要颜色 }}">
+    </div>
+  </div>
+
+  <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">👍 点赞动效</span>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">点赞底部颜色左</span>
+        <span class="hex" id="hexLkLikeL">{{ colors.点赞底部颜色左 }}</span>
+      </div>
+      <input type="color" id="lkLikeL" value="{{ st.get('点赞底部颜色左') or colors.点赞底部颜色左 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">点赞底部颜色右</span>
+        <span class="hex" id="hexLkLikeR">{{ colors.点赞底部颜色右 }}</span>
+      </div>
+      <input type="color" id="lkLikeR" value="{{ st.get('点赞底部颜色右') or colors.点赞底部颜色右 }}">
+    </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">点赞文字色</span>
+        <span class="hex" id="hexLkLikeText">{{ colors.点赞文字色 }}</span>
+      </div>
+      <input type="color" id="lkLikeText" value="{{ st.get('点赞文字色') or colors.点赞文字色 }}">
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="lkEditText" placeholder="输入文字…" value="{{ st.get('编辑文字') or '' }}" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <input type="number" id="lkFontSize" value="{{ st.get('编辑字号') or 36 }}" min="12" max="120" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+    <label style="font-size:13px;color:#666">字号</label>
+    <button class="btn btn-primary" id="btnExportLike" onclick="doExportLike()">📥 导出</button>
+  </div>
+
+  <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label data-upload-file="方图.png">⬆ 方图 <input type="file" accept=".png" onchange="uploadLike('方图.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="预览页gif.png">⬆ 预览页gif <input type="file" accept=".png" onchange="uploadLike('预览页gif.png',this)"></label></div>
+    <span style="font-size:12px;color:#999">预览底色上/下只影响 chang/fang 两块画板</span>
+  </div>
+
+  <div id="likeStatus" class="status"></div>
+
+  <!-- 布局：左 被赞动效.jpg（跨两行）｜右 chang/预览底色 上排、fang 下排 -->
+  <div id="likeBoardsWrap" style="display:grid;grid-template-columns:minmax(200px,320px) minmax(0,1fr) auto;grid-template-areas:'like chang panel' 'like fang panel';gap:14px;align-items:start;max-width:1280px">
+    <div id="likePreviews" style="grid-area:like;min-width:0"></div>
+    <div id="carPreviewBoardsChang" style="grid-area:chang;min-width:0"></div>
+    <div id="carPreviewBoardsFang" style="grid-area:fang;min-width:0"></div>
+    <div class="color-grid" style="grid-area:panel;display:flex;flex-direction:column;gap:10px;align-items:flex-start;margin:0">
+      <span style="font-size:13px;font-weight:600;color:#1d1d1f">🖼 预览底色</span>
+      <div class="color-item">
+        <div class="color-label">
+          <span class="name">上</span>
+          <span class="hex" id="hexCarPrevTop">{{ colors.预览底色上 }}</span>
+        </div>
+        <input type="color" id="carPrevTop" value="{{ st.get('预览底色上') or colors.预览底色上 }}">
+      </div>
+      <div class="color-item">
+        <div class="color-label">
+          <span class="name">下</span>
+          <span class="hex" id="hexCarPrevBottom">{{ colors.预览底色下 }}</span>
+        </div>
+        <input type="color" id="carPrevBottom" value="{{ st.get('预览底色下') or colors.预览底色下 }}">
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ======== 商城轮播面板 ======== -->
 <div id="carouselPanel" style="display:none">
   <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
@@ -315,7 +427,33 @@
     </div>
   </div>
 
-  <!-- 点赞三色：紧随轮播色下方 -->
+  <div class="toolbar">
+    <input type="text" id="carEditText" placeholder="输入文字…" value="{{ st.get('编辑文字') or '' }}" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
+    <input type="number" id="carFontSize" value="{{ st.get('编辑字号') or 36 }}" min="12" max="120" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+    <label style="font-size:13px;color:#666">字号</label>
+    <button class="btn btn-primary" id="btnExportCar" onclick="doExportCarousel()">📥 导出商城物料</button>
+  </div>
+
+  <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label data-upload-file="主页皮肤.png">⬆ 主页皮肤背景 <input type="file" accept=".png" onchange="uploadCarousel('主页皮肤.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="头像挂件.png">⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="方图.png">⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="star_001_mobile_new.png">⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="gua#ff5582.png">⬆ 气泡装饰 <input type="file" accept=".png" onchange="uploadCarousel('gua#ff5582.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="聊天头像.png">⬆ 聊天头像 <input type="file" accept=".png" onchange="uploadCarousel('聊天头像.png',this)"></label></div>
+  </div>
+
+  <div id="carouselStatus" class="status"></div>
+  <div class="previews" id="carouselPreviews"></div>
+
+  <div class="toolbar" style="margin-top:4px">
+    <div class="upload-group"><label data-upload-file="气泡框.gif">⬆ 气泡框gif <input type="file" accept=".gif" onchange="uploadCarousel('气泡框.gif',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="皮肤封面.mp4">⬆ 皮肤封面mp4 <input type="file" accept=".mp4" onchange="uploadCarousel('皮肤封面.mp4',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="点赞.gif">⬆ 点赞gif <input type="file" accept=".gif" onchange="uploadCarousel('点赞.gif',this)"></label></div>
+    <button class="btn btn-primary" id="btnExportGif" onclick="doExportCarouselGif()">📥 导出gif</button>
+  </div>
+
+  <!-- 点赞三色：调 被赞动效 上胶囊/文字的颜色（与被赞预览页共用一套值） -->
   <div class="color-grid" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:14px;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#1d1d1f;margin-right:4px">👍 点赞动效</span>
     <div class="color-item">
@@ -339,58 +477,6 @@
       </div>
       <input type="color" id="carLikeText" value="{{ st.get('点赞文字色') or colors.点赞文字色 }}">
     </div>
-  </div>
-
-  <div class="toolbar">
-    <input type="text" id="carEditText" placeholder="输入文字…" value="{{ st.get('编辑文字') or '' }}" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:150px">
-    <input type="number" id="carFontSize" value="{{ st.get('编辑字号') or 36 }}" min="12" max="120" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px">
-    <label style="font-size:13px;color:#666">字号</label>
-    <button class="btn btn-primary" id="btnExportCar" onclick="doExportCarousel()">📥 导出商城物料</button>
-  </div>
-
-  <div class="toolbar" style="margin-top:4px">
-    <div class="upload-group"><label data-upload-file="主页皮肤.png">⬆ 主页皮肤背景 <input type="file" accept=".png" onchange="uploadCarousel('主页皮肤.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="头像挂件.png">⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="方图.png">⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="star_001_mobile_new.png">⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="gua#ff5582.png">⬆ 气泡装饰 <input type="file" accept=".png" onchange="uploadCarousel('gua#ff5582.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="聊天头像.png">⬆ 聊天头像 <input type="file" accept=".png" onchange="uploadCarousel('聊天头像.png',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="预览页gif.png">⬆ 预览页gif <input type="file" accept=".png" onchange="uploadCarousel('预览页gif.png',this)"></label></div>
-  </div>
-
-  <div id="carouselStatus" class="status"></div>
-  <div class="previews" id="carouselPreviews"></div>
-
-  <!-- chang.png / fang.png 预览画板 + 右侧同行的上下渐变底色 -->
-  <div style="display:flex;gap:18px;align-items:flex-start;max-width:1180px;margin:0 auto">
-  <div style="flex:1;min-width:0">
-  <!-- 每块画板下面各自一行微调（↑↓←→ 各 1px + 缩放 ±1px），由 JS 渲染 -->
-  <div class="previews" id="carPreviewBoards" style="grid-template-columns:repeat(2,1fr);margin-top:10px"></div>
-  </div>
-  <div class="color-grid" style="display:flex;flex-direction:column;gap:10px;align-items:flex-start;margin-top:10px;flex:0 0 auto">
-    <span style="font-size:13px;font-weight:600;color:#1d1d1f">🖼 预览底色</span>
-    <div class="color-item">
-      <div class="color-label">
-        <span class="name">上</span>
-        <span class="hex" id="hexCarPrevTop">{{ colors.预览底色上 }}</span>
-      </div>
-      <input type="color" id="carPrevTop" value="{{ st.get('预览底色上') or colors.预览底色上 }}">
-    </div>
-    <div class="color-item">
-      <div class="color-label">
-        <span class="name">下</span>
-        <span class="hex" id="hexCarPrevBottom">{{ colors.预览底色下 }}</span>
-      </div>
-      <input type="color" id="carPrevBottom" value="{{ st.get('预览底色下') or colors.预览底色下 }}">
-    </div>
-  </div>
-  </div>
-
-  <div class="toolbar" style="margin-top:4px">
-    <div class="upload-group"><label data-upload-file="气泡框.gif">⬆ 气泡框gif <input type="file" accept=".gif" onchange="uploadCarousel('气泡框.gif',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="皮肤封面.mp4">⬆ 皮肤封面mp4 <input type="file" accept=".mp4" onchange="uploadCarousel('皮肤封面.mp4',this)"></label></div>
-    <div class="upload-group"><label data-upload-file="点赞.gif">⬆ 点赞gif <input type="file" accept=".gif" onchange="uploadCarousel('点赞.gif',this)"></label></div>
-    <button class="btn btn-primary" id="btnExportGif" onclick="doExportCarouselGif()">📥 导出gif</button>
   </div>
 
   <div id="carouselGifStatus" class="status"></div>
@@ -700,7 +786,10 @@ const carLikeText = document.getElementById('carLikeText');
 const hexCarLikeL = document.getElementById('hexCarLikeL');
 const hexCarLikeR = document.getElementById('hexCarLikeR');
 const hexCarLikeText = document.getElementById('hexCarLikeText');
-const carPreviewBoards = document.getElementById('carPreviewBoards');
+// chang/fang 两块画板拆成两个容器（被赞预览页布局用），微调按钮事件委托挂外层 wrap 上
+const likeBoardsWrap = document.getElementById('likeBoardsWrap');
+const carPreviewBoardsChang = document.getElementById('carPreviewBoardsChang');
+const carPreviewBoardsFang = document.getElementById('carPreviewBoardsFang');
 const carPrevTop = document.getElementById('carPrevTop');
 const carPrevBottom = document.getElementById('carPrevBottom');
 // 预览页gif.png 在 chang/fang 里各自的微调：dx/dy 偏移(px)、s 缩放(±1px 一档)
@@ -710,6 +799,9 @@ const hexCarPrevBottom = document.getElementById('hexCarPrevBottom');
 const carouselGifPreviews = document.getElementById('carouselGifPreviews');
 const carouselGifStatus = document.getElementById('carouselGifStatus');
 const btnExportGif = document.getElementById('btnExportGif');
+const likePreviews = document.getElementById('likePreviews');
+const likeStatus = document.getElementById('likeStatus');
+const btnExportLike = document.getElementById('btnExportLike');
 
 let carDebounce = null;
 let carGifDebounce = null;
@@ -727,8 +819,10 @@ let currentTab = INITIAL_STATE['当前面板'] || 'bubble';
 let npDebounce = null;
 
 function markUploaded(name) {
-  const lb = document.querySelector('label[data-upload-file="' + name + '"]');
-  if (lb) lb.classList.add('has-file');
+  // 方图.png 等按钮在两个页都有，全部点亮
+  document.querySelectorAll('label[data-upload-file="' + name + '"]').forEach(lb => {
+    lb.classList.add('has-file');
+  });
   if (UPLOADED_FILES.indexOf(name) < 0) UPLOADED_FILES.push(name);
 }
 function markUploadedFiles() {
@@ -774,8 +868,8 @@ function saveState() {
 function switchTab(tab) {
   currentTab = tab;
   saveState();
-  const panels = { bubble: 'bubblePanel', carousel: 'carouselPanel', ninepatch: 'ninepatchPanel' };
-  const btns = { bubble: 'tabBubble', carousel: 'tabCarousel', ninepatch: 'tabNinepatch' };
+  const panels = { bubble: 'bubblePanel', like: 'likePanel', carousel: 'carouselPanel', ninepatch: 'ninepatchPanel' };
+  const btns = { bubble: 'tabBubble', like: 'tabLike', carousel: 'tabCarousel', ninepatch: 'tabNinepatch' };
   for (const key of Object.keys(panels)) {
     document.getElementById(panels[key]).style.display = (key === tab) ? 'block' : 'none';
     const btn = document.getElementById(btns[key]);
@@ -785,12 +879,17 @@ function switchTab(tab) {
       btn.style.background = '#f5f5f7'; btn.style.color = '#666';
     }
   }
-  // 切到任一标签页都立即刷新它的预览（三个页都要，别漏 bubble）
+  // 切到任一标签页都立即刷新它的预览（每个页都要有分支，别漏 bubble）
   if (tab === 'carousel') {
     clearTimeout(carDebounce);
     carDebounce = null;
     doCarouselPreviewNow();
     scheduleCarouselGif();
+  } else if (tab === 'like') {
+    clearTimeout(carDebounce);
+    carDebounce = null;
+    syncLikeClones();        // 克隆控件跟上主控件的最新值
+    doCarouselPreviewNow();  // 同一份数据，被赞页只显示被赞相关那几张
   } else if (tab === 'ninepatch') {
     clearTimeout(npDebounce);
     npDebounce = null;
@@ -845,6 +944,7 @@ function updateCarouselHex() {
 
 function _fetchCarousel() {
   carouselStatus.innerHTML = '<span class="spinner"></span> 生成中...';
+  likeStatus.innerHTML = '<span class="spinner"></span> 生成中...';
   fetch('/generate_carousel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -854,21 +954,30 @@ function _fetchCarousel() {
   .then(data => {
     if (data.ok) {
       carouselStatus.textContent = '✅ 预览已更新';
-      // chang.png / fang.png 是新的预览画板，单独一行渲染；其余进五张静态画板行
-      let html = '', htmlBoards = '';
+      likeStatus.textContent = '✅ 预览已更新';
+      // 一份数据喂几个容器：商城轮播 4 张静态；被赞预览页拿 被赞动效.jpg 和 chang/fang
+      let html = '', htmlChang = '', htmlFang = '', htmlLike = '';
       for (const [name, url] of Object.entries(data.previews)) {
         const card = `<div class="preview-card"><div class="name">${name}</div><img src="${url}"></div>`;
-        if (name === 'chang.png' || name === 'fang.png') htmlBoards += pvBoardBlock(name, url);
+        if (name === 'chang.png') htmlChang += pvBoardBlock(name, url);
+        else if (name === 'fang.png') htmlFang += pvBoardBlock(name, url);
+        else if (name === '被赞动效.jpg') htmlLike += card;
         else html += card;
       }
       carouselPreviews.innerHTML = html;
-      carPreviewBoards.innerHTML = htmlBoards;
+      carPreviewBoardsChang.innerHTML = htmlChang;
+      carPreviewBoardsFang.innerHTML = htmlFang;
+      likePreviews.innerHTML = htmlLike;
       updateCarPvCtrls();
     } else {
       carouselStatus.textContent = '❌ ' + (data.error || '生成失败');
+      likeStatus.textContent = '❌ ' + (data.error || '生成失败');
     }
   })
-  .catch(() => { carouselStatus.textContent = '❌ 请求失败'; });
+  .catch(() => {
+    carouselStatus.textContent = '❌ 请求失败';
+    likeStatus.textContent = '❌ 请求失败';
+  });
 }
 
 // chang/fang 各自的画板 + 底下那行微调按钮（↑↓←→ 各 1px，缩放 ±1px）
@@ -894,7 +1003,7 @@ function pvBoardBlock(name, url) {
 
 // 把 carPv 里的值刷到那两行按钮上（画板还没渲染时就跳过）
 function updateCarPvCtrls() {
-  document.querySelectorAll('#carPreviewBoards .pv-ctrl').forEach(row => {
+  document.querySelectorAll('#likeBoardsWrap .pv-ctrl').forEach(row => {
     const st = carPv[row.dataset.pv];
     if (!st) return;
     row.querySelector('[data-role="off"]').textContent = st.dx + ', ' + st.dy;
@@ -903,7 +1012,7 @@ function updateCarPvCtrls() {
 }
 
 // 点微调按钮：改 carPv → 刷静态画板（不重算 gif）→ 存状态
-carPreviewBoards.addEventListener('click', e => {
+likeBoardsWrap.addEventListener('click', e => {
   const btn = e.target.closest('[data-act]');
   if (!btn) return;
   const st = carPv[btn.closest('[data-pv]').dataset.pv];
@@ -932,7 +1041,9 @@ function doCarouselStaticPreview() {
 function doCarouselPreview() {
   clearTimeout(carDebounce);
   carDebounce = setTimeout(_fetchCarousel, 300);
-  scheduleCarouselGif();
+  // 动效 gif 只有商城轮播页在展示：在被赞页调色不必后台烧 ffmpeg
+  // （切回商城轮播时 switchTab 会自动补刷）
+  if (currentTab === 'carousel') scheduleCarouselGif();
 }
 
 function scheduleCarouselGif() {
@@ -1069,6 +1180,101 @@ document.querySelectorAll('#carBubblePresets .preset-swatch').forEach(b => {
 });
 carEditText.addEventListener('input', () => { doCarouselPreview(); });
 document.getElementById('carFontSize').addEventListener('input', () => { doCarouselPreview(); });
+
+// ─── 被赞预览页的克隆控件（与商城轮播共用同一套值，存档键不变）───
+// [克隆input, 主input, 克隆hex标签(可空)]：克隆上改动 → 写回主控件并派发 input，
+// 自动走主控件原有的 刷hex/刷预览/存档 链路，再把所有克隆同步一遍。
+const LK_CLONES = [
+  ['lkBg', 'carBg', 'hexLkBg'],
+  ['lkText', 'carText', 'hexLkText'],
+  ['lkEdit', 'carEdit', 'hexLkEdit'],
+  ['lkWant', 'carWant', 'hexLkWant'],
+  ['lkBubble', 'carBubble', 'hexLkBubble'],
+  ['lkLikeL', 'carLikeL', 'hexLkLikeL'],
+  ['lkLikeR', 'carLikeR', 'hexLkLikeR'],
+  ['lkLikeText', 'carLikeText', 'hexLkLikeText'],
+  ['lkEditText', 'carEditText', null],
+  ['lkFontSize', 'carFontSize', null],
+];
+
+function syncLikeClones() {
+  for (const [cid, pid, hxid] of LK_CLONES) {
+    const pv = document.getElementById(pid).value;
+    document.getElementById(cid).value = pv;
+    if (hxid) document.getElementById(hxid).textContent = pv;
+  }
+  // 克隆侧的气泡底框预置高亮
+  document.querySelectorAll('#lkBubblePresets .preset-swatch').forEach(b => {
+    b.classList.toggle('active', b.dataset.color === carBubble.value);
+  });
+}
+
+function bindLikeClones() {
+  for (const [cid, pid] of LK_CLONES) {
+    document.getElementById(cid).addEventListener('input', () => {
+      const primary = document.getElementById(pid);
+      primary.value = document.getElementById(cid).value;
+      primary.dispatchEvent(new Event('input', { bubbles: true }));
+      syncLikeClones();
+    });
+  }
+  document.querySelectorAll('#lkBubblePresets .preset-swatch').forEach(b => {
+    b.addEventListener('click', () => {
+      carBubble.value = b.dataset.color;
+      carBubble.dispatchEvent(new Event('input', { bubbles: true }));
+      syncLikeClones();
+    });
+  });
+}
+
+// 被赞预览页的上传：同一 /upload_carousel 接口，状态文字写在被赞页
+function uploadLike(name, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('name', name);
+  form.append('file', file);
+  likeStatus.textContent = `⏳ 上传 ${name}...`;
+  fetch('/upload_carousel', { method: 'POST', body: form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        likeStatus.textContent = `✅ ${data.file} 已更新，刷新预览...`;
+        markUploaded(data.file);
+        doCarouselPreview();
+      } else {
+        likeStatus.textContent = '❌ ' + (data.error || '上传失败');
+      }
+    });
+  input.value = '';
+}
+
+function doExportLike() {
+  btnExportLike.disabled = true;
+  likeStatus.innerHTML = '<span class="spinner"></span> 导出中...';
+  fetch('/export_like', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getCarouselColors())
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.error || '导出失败'); });
+    return r.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '11被赞动效.zip';
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+    btnExportLike.disabled = false;
+    likeStatus.textContent = '✅ 导出完成';
+  })
+  .catch(err => {
+    btnExportLike.disabled = false;
+    likeStatus.textContent = '❌ ' + err.message;
+  });
+}
 
 // ─── 气泡宣传 ──────────────────────────────────────────
 const npTextL = document.getElementById('npTextL');
@@ -1382,6 +1588,8 @@ document.addEventListener('DOMContentLoaded', () => {
     darkAuto.tag = savedAuto.tag !== false;
     darkAuto.bg = savedAuto.bg !== false;
   }
+  bindLikeClones();
+  syncLikeClones();   // 先同步克隆控件再 buildSwatches，色块一开始就是对的
   buildSwatches();
   // 暗色仍在跟随状态 → 按浅色 ×0.9 重算；否则保留存档里的值
   if (darkAuto.text) colorTextDark.value = darkenHex(colorText.value);
