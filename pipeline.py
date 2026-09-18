@@ -64,6 +64,7 @@ CAROUSEL_BUBBLE_PRESETS = [
 DEFAULT_CAROUSEL_BUBBLE_BG = CAROUSEL_BUBBLE_PRESETS[0]  # 默认 #FF8F56
 DEFAULT_CAROUSEL_EDIT_COLOR = (130, 115, 115)        # 可编辑文字 深灰
 DEFAULT_CAROUSEL_EDIT_SIZE = 36                      # 可编辑文字字号
+DEFAULT_CAROUSEL_BOARD_BG = (255, 237, 244)         # 轮播背景色块.png 纯色底（源 05/a.png #ffedf4）
 
 def _get_carousel_dir():
     """自动检测商城素材目录：优先打包内 _MEIPASS，其次 exe/脚本同目录。"""
@@ -463,12 +464,14 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
                        car_tag_color=None, car_tag_bg_color=None, car_text_color=None,
                        like_left=None, like_right=None, like_text=None,
                        prev_top=None, prev_bottom=None,
-                       prev_chang=(0, 0, 0), prev_fang=(0, 0, 0)):
+                       prev_chang=(0, 0, 0), prev_fang=(0, 0, 0),
+                       board_bg_color=None):
     """生成 5 张商城轮播图 + chang/fang 预览画板，返回 {(文件名): Image}。
 
     like_left/like_right/like_text：点赞三色（被赞动效.jpg 顶部图层用，None 回退默认）。
     prev_top/prev_bottom：chang/fang 上下渐变色（None 回退默认）。
     prev_chang/prev_fang：各自的 (偏移X, 偏移Y, 缩放) 微调，页面上的按钮调的。
+    board_bg_color：「轮播背景色.txt」画板的纯色底色。
     键以 `_` 开头的（如 _被赞动效底图）是内部键，仅供 compose_like_gif 用，
     服务端预览/导出时应跳过。
     """
@@ -616,6 +619,16 @@ def _generate_carousel(text_color, want_color, bg_color, bubble_bg_color,
         bg = paste_at(bg, load_color('3.png', text_color), 507, 2120)
         return bg
     result['评论气泡.png'] = make_with_text(img3)
+
+    # ---- (3.5) 轮播背景色.txt 画板（纯色底 + 浮层 + 用户上传的轮播预览图）----
+    # 键名叫 .txt 但值是画板 Image：只用于网页预览，导出时只写色值 txt 不导图（server.py）
+    def img_cb():
+        bbc = board_bg_color if board_bg_color is not None else DEFAULT_CAROUSEL_BOARD_BG
+        bg = load_color('轮播背景色块.png', bbc)
+        bg = _paste_over(bg, load_src('轮播背景浮层.png'), (0, 0))
+        bg = _paste_over(bg, load_user('轮播预览图.png'), (342, 282))
+        return bg
+    result['轮播背景色.txt'] = img_cb()
 
     # ---- (4) 聊天气泡.png ----
     def img4():

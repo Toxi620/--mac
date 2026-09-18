@@ -425,6 +425,13 @@
       </div>
       <input type="color" id="carWant" value="{{ st.get('我也想要颜色') or colors.我也想要颜色 }}">
     </div>
+    <div class="color-item">
+      <div class="color-label">
+        <span class="name">轮播背景色</span>
+        <span class="hex" id="hexCarBoardBg">{{ colors.轮播背景色 }}</span>
+      </div>
+      <input type="color" id="carBoardBg" value="{{ st.get('轮播背景色') or colors.轮播背景色 }}">
+    </div>
   </div>
 
   <div class="toolbar">
@@ -436,6 +443,7 @@
 
   <div class="toolbar" style="margin-top:4px">
     <div class="upload-group"><label data-upload-file="主页皮肤.png">⬆ 主页皮肤背景 <input type="file" accept=".png" onchange="uploadCarousel('主页皮肤.png',this)"></label></div>
+    <div class="upload-group"><label data-upload-file="轮播预览图.png">⬆ 轮播预览图 <input type="file" accept=".png" onchange="uploadCarousel('轮播预览图.png',this)"></label></div>
     <div class="upload-group"><label data-upload-file="头像挂件.png">⬆ 头像+挂件 <input type="file" accept=".png" onchange="uploadCarousel('头像挂件.png',this)"></label></div>
     <div class="upload-group"><label data-upload-file="方图.png">⬆ 方图 <input type="file" accept=".png" onchange="uploadCarousel('方图.png',this)"></label></div>
     <div class="upload-group"><label data-upload-file="star_001_mobile_new.png">⬆ 顶部装饰 <input type="file" accept=".png" onchange="uploadCarousel('star_001_mobile_new.png',this)"></label></div>
@@ -769,11 +777,13 @@ function uploadPromoBubble(side, input) {
 const carText = document.getElementById('carText');
 const carBg = document.getElementById('carBg');
 const carWant = document.getElementById('carWant');
+const carBoardBg = document.getElementById('carBoardBg');
 const carBubble = document.getElementById('carBubble');
 const carEdit = document.getElementById('carEdit');
 const hexCarText = document.getElementById('hexCarText');
 const hexCarBg = document.getElementById('hexCarBg');
 const hexCarWant = document.getElementById('hexCarWant');
+const hexCarBoardBg = document.getElementById('hexCarBoardBg');
 const hexCarBubble = document.getElementById('hexCarBubble');
 const hexCarEdit = document.getElementById('hexCarEdit');
 const carEditText = document.getElementById('carEditText');
@@ -906,6 +916,7 @@ function getCarouselColors() {
     轮播文字色: carText.value,
     底框颜色: carBg.value,
     我也想要颜色: carWant.value,
+    轮播背景色: carBoardBg.value,
     气泡底框颜色: carBubble.value,
     编辑字色: carEdit.value,
     编辑文字: carEditText.value,
@@ -927,6 +938,7 @@ function updateCarouselHex() {
   hexCarText.textContent = carText.value;
   hexCarBg.textContent = carBg.value;
   hexCarWant.textContent = carWant.value;
+  hexCarBoardBg.textContent = carBoardBg.value;
   hexCarBubble.textContent = carBubble.value;
   hexCarEdit.textContent = carEdit.value;
   hexCarLikeL.textContent = carLikeL.value;
@@ -1160,6 +1172,8 @@ function uploadCarousel(name, input) {
 carText.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carBg.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carWant.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
+// 轮播背景色只影响静态画板（gif 里没有它），不用重算 gif
+carBoardBg.addEventListener('input', () => { updateCarouselHex(); doCarouselStaticPreview(); });
 carBubble.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 carEdit.addEventListener('input', () => { updateCarouselHex(); doCarouselPreview(); });
 // 点赞三色同时改 被赞动效.jpg（静态，含点赞gif/胶囊/文字）和 被赞动效.gif

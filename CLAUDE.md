@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 微博预览图配色工具 — 图像处理管线 + Flask Web GUI。三大功能模块：
 
 - **气泡预览图**: 聊天气泡颜色替换、点九拉伸、合成亮/暗双模式、商城展示图、引流位横幅
-- **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料（导出只含其中 4 张，被赞相关拆到「被赞预览」）
+- **商城轮播图**: 从 `原素材/` 的 5 张底图出发，叠加可调色素材 + 用户上传素材 + 编辑文字，生成 5 张商城预览物料（导出只含其中 4 张，被赞相关拆到「被赞预览」）；另有「轮播背景色.txt」画板（1125×2436：纯色块 + 浮层 + 用户上传 `轮播预览图.png` @(342,282)），**只出预览不导图**，导出时只写一个含色值 hex 的 `轮播背景色.txt`
 - **被赞预览**（独立标签页）: 展示 `被赞动效.jpg` + 预览画板 `chang.png`(510×264) / `fang.png`(228×228)（上下渐变底 + 用户上传 `预览页gif.png`；底色与各自的偏移/缩放网页上可调）。轮播色/点赞三色/编辑文字输入框与商城轮播**共用同一套值**（克隆控件写回主控件）；导出 `11被赞动效.zip` = 被赞动效.jpg + chang.png + fang.png + `db#<点赞文字色hex小写>.png`
 - **商城动效 gif**: 在 5 张静态下新增「点赞动效」区 → 实时合成两张动效 `主页皮肤.gif` / `被赞动效.gif`（预览宽 360、导出全尺寸 1242），可调 点赞底部左/右、点赞文字色，上传 气泡框.gif / 皮肤封面.mp4 / 点赞.gif，导出 zip（两 gif + `db#<点赞文字色hex小写>.png`）。**mp4 解码与 gif 编码都依赖 ffmpeg/ffprobe**（打包时必须塞进 bundle）
 - **气泡预览图**: 470×470 画板，背景可上传；左右气泡沿用宣传素材（缩到 168 起），左气泡左上角 (72,90) 向右延长、右气泡右上角 (392,230) 向左延长；走 **iOS 点九逻辑**，文字竖直居中、苹方默认 38，可导出 PNG
@@ -49,9 +49,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 5. Phase E: 商城展示图 420×174（气泡 + 文字叠加预览版）
 6. Phase F: 引流位横幅 366×204（渐变背景 + 气泡 + wz_3 文字）
 
-**轮播管线 `_generate_carousel()`** — 5 张图 + 2 张预览画板：
+**轮播管线 `_generate_carousel()`** — 5 张图 + 2 张预览画板 + 「轮播背景色.txt」画板：
 签名含 `edit_size`（可调字号），文字加载优先 `fonts/PingFang.ttf`，回退系统字体
 `img5()`（被赞动效.jpg 画板）**不叠** 头像+挂件、顶部装饰（其余图层与卡片背景页一致）
+「轮播背景色.txt」画板（`img_cb`，键叫 .txt 但值是 Image）：`轮播背景色块.png`（改颜色的/，纯色块染 `board_bg_color`）→ `_paste_over` 盖 `轮播背景浮层.png`（原素材根）→ 盖用户上传的 `轮播预览图.png` @(342,282)（`load_user`，默认素材在 塞进去替换的/）。只进预览，导出时跳过（server.py 里写成色值 txt）
 
 新增参数（服务端统一由 `_carousel_and_like_params()` 解析，4 个调用点共用）：
 `like_left/like_right/like_text`（点赞三色）、`prev_top/prev_bottom`（chang/fang 上下渐变底色）、
@@ -88,13 +89,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `GET /state` 读存档 + 已上传素材清单；`POST /state` 保存存档（临时文件 + `os.replace` 原子写）
   - `POST /generate` 气泡预览缩略图；`POST /export` 导出气泡高清 ZIP
   - `POST /generate_carousel` 轮播预览（跳过 `_` 内部键，宽 >600 的等比缩到 600）；`POST /export_carousel` 导出商城物料 ZIP
-    - ZIP 结构：**根** = 4 张静态画板（`主页皮肤.png`/`卡片背景.png`/`聊天气泡.png`/`评论气泡.png`）；被赞相关（被赞动效.jpg/chang/fang/db#）已拆到 `/export_like`
+    - ZIP 结构：**根** = 4 张静态画板（`主页皮肤.png`/`卡片背景.png`/`聊天气泡.png`/`评论气泡.png`）+ `轮播背景色.txt`（内容 = 轮播背景色 hex 小写，如 `#ffeef4`，对应画板图不导）；被赞相关（被赞动效.jpg/chang/fang/db#）已拆到 `/export_like`
     - 导出前清残留：删 out_dir 里的 `被赞动效.jpg`/`chang.png`/`fang.png` 和 `11被赞动效/` 整个文件夹（旧版导出产物不删会混进 zip）
   - `POST /export_like` 被赞预览导出：`11被赞动效.zip` = 根下 4 个文件（`被赞动效.jpg` + `chang.png` + `fang.png` + `db#<点赞文字色hex小写>.png` 206×84 左右渐变），纯内存打包（参考 export_promo）不落盘
   - 两个轮播接口的入参都由 **`_carousel_and_like_params(data)`** 统一解析（颜色 + 编辑文字/字号 + 点赞三色 + `预览底色上/下` + `chang偏移X/Y/缩放` + `fang偏移X/Y/缩放` → 打包成 `pvc`/`pvf` 两个三元组），加参数只改这一处
   - `POST /generate_gif` 动效预览（全宽360 两 gif 一并返回）；`POST /export_gif` 导出 动效物料.zip（两 gif 全尺寸 + db#.png）
   - `POST /generate_promo` 气泡宣传预览（参数：左文字/右文字/字号/文字色/**ios**；`ios=true` 走 IOS 那套逻辑）；`POST /export_promo` 导出 zip（`气泡宣传.zip` / `气泡宣传IOS.zip`，IOS 的图名带 `_IOS`）
-  - `POST /upload_carousel` 轮播素材上传（name 白名单，含 头像挂件/方图/star/gua/主页皮肤/聊天头像 + 动效三样 气泡框.gif/皮肤封面.mp4/点赞.gif）；`POST /upload_bubble` 气泡素材上传（left/right/bg_0/bg_1）
+  - `POST /upload_carousel` 轮播素材上传（name 白名单，含 头像挂件/方图/star/gua/主页皮肤/聊天头像/**轮播预览图** + 动效三样 气泡框.gif/皮肤封面.mp4/点赞.gif）；`POST /upload_bubble` 气泡素材上传（left/right/bg_0/bg_1）
   - `POST /upload_promo_bubble` **气泡宣传专用**素材上传（side=left/right）：传 176×176 带黑边的图 → 写 3 份：`<side>_.9.png`（安卓+iOS+气泡预览图 共用）、`<side>_ios.png`（兼容旧路径）、`<side>_promo_src.png`（原图备份）；非 176 的按无边框处理，安卓那份自动补 1px 透明边框。返回 `thumb`(base64) 供前端回显
   - `POST /generate_bubble_preview` 气泡预览图预览（参数：左文字/右文字/字号/文字色）→ 返回 `preview`(base64)
   - `POST /export_bubble_preview` 导出 470×470 全尺寸 PNG（`气泡预览图.png`）
@@ -257,3 +258,4 @@ python -m PyInstaller --onefile -w --distpath . --add-data "templates;templates"
 - **⚠️ 导出目录名对不上**：需求文本（`03/替换头像.txt`）写的是 **`11被赞动态`**，代码里是 **`11被赞动效`**（`server.py` 的 `sub_dir`）。两边说好统一哪个再改，别单方面重命名（下游可能已经按现有名字接了）
 - **chang/fang 的来源**：`chang.png` = 510×264 画板、`fang.png` = 228×228 画板，素材都是**用户上传的 `预览页gif.png`**（USER_DATA_DIR），`原素材/` 里没有；没传就只输出渐变底
 - **预览底色上/下**（`DEFAULT_PREVIEW_GRAD_TOP`=`#fefae8` / `_BOTTOM`=`#ecfafe`）只影响 chang/fang 这两张静态画板，改它**不需要重算 gif**（前端走 `doCarouselStaticPreview()`）
+- **轮播背景色画板素材**（源 `05/a.png`/`b.png`/`c.png`）：a→`原素材/改颜色的/轮播背景色块.png`（纯色块 #ffedf4，整图染「轮播背景色」）、b→`原素材/轮播背景浮层.png`、c→`原素材/塞进去替换的/轮播预览图.png`（默认样张，用户上传覆盖）。画板 1125×**2436**（需求 txt 写 1436 是笔误，以素材原生高为准）。轮播背景色改的也只是静态预览，不动 gif（前端 `doCarouselStaticPreview()`）

@@ -98,6 +98,7 @@ def get_colors() -> dict:
             "轮播文字色": h(pipeline.DEFAULT_CAROUSEL_TEXT_COLOR),
             "底框颜色": h(pipeline.DEFAULT_CAROUSEL_BG_COLOR),
             "我也想要颜色": h(pipeline.DEFAULT_CAROUSEL_WANT_COLOR),
+            "轮播背景色": h(pipeline.DEFAULT_CAROUSEL_BOARD_BG),
             "气泡底框颜色": h(pipeline.DEFAULT_CAROUSEL_BUBBLE_BG),
             "气泡底框预置色": [h(c) for c in pipeline.CAROUSEL_BUBBLE_PRESETS],
             "编辑字色": h(pipeline.DEFAULT_CAROUSEL_EDIT_COLOR),
@@ -229,7 +230,7 @@ def generate_carousel():
         imgs = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
                                            p['et'], p['es'], p['src'], p['ud'],
                                            p['tag_c'], p['tag_bg_c'], p['btc'],
-                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
+                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'], p['cbc'])
         import base64
         result = {}
         for name, img in imgs.items():
@@ -370,7 +371,7 @@ def export_carousel():
         imgs = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
                                            p['et'], p['es'], p['src'], p['ud'],
                                            p['tag_c'], p['tag_bg_c'], p['btc'],
-                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
+                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'], p['cbc'])
         out_dir = pipeline.CAROUSEL_OUTPUT_DIR
         os.makedirs(out_dir, exist_ok=True)
         # 被赞相关已拆到「被赞预览」导出，清掉旧版残留（zip 是整目录打包，不删会混进去）
@@ -387,6 +388,8 @@ def export_carousel():
                 continue  # 内部键不导出
             if name in ('被赞动效.jpg', 'chang.png', 'fang.png'):
                 continue  # 移到 /export_like
+            if name == '轮播背景色.txt':
+                continue  # 这块画板只导色值 txt（下面），图不进包
             save_fmt = 'JPEG' if name.endswith('.jpg') else 'PNG'
             if img.mode == 'RGBA':
                 flat = Image.new('RGB', img.size, (255, 255, 255))
@@ -394,6 +397,9 @@ def export_carousel():
                 flat.save(os.path.join(out_dir, name), format='PNG')
             else:
                 img.save(os.path.join(out_dir, name), format=save_fmt)
+        # 轮播背景色.txt：内容 = 轮播背景色 hex 小写（如 #ffeef4）
+        with open(os.path.join(out_dir, '轮播背景色.txt'), 'w', encoding='utf-8') as f:
+            f.write('#' + ''.join('%02x' % c for c in p['cbc']))
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -419,7 +425,7 @@ def export_like():
         imgs = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
                                            p['et'], p['es'], p['src'], p['ud'],
                                            p['tag_c'], p['tag_bg_c'], p['btc'],
-                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
+                                           p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'], p['cbc'])
         dbname = 'db#' + ''.join('%02x' % c for c in p['lt']) + '.png'
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -452,6 +458,7 @@ def _carousel_and_like_params(data):
     ud = pipeline.USER_DATA_DIR
     tc = hex_to_rgb(data.get("轮播文字色", "#0066ff"))
     wc = hex_to_rgb(data.get("我也想要颜色", "#333333"))
+    cbc = hex_to_rgb(data.get("轮播背景色", "#ffedf4"))
     bc = hex_to_rgb(data.get("底框颜色", "#b482d2"))
     bbc = hex_to_rgb(data.get("气泡底框颜色", "#ff8f56"))
     ec = hex_to_rgb(data.get("编辑字色", "#827373"))
@@ -465,7 +472,7 @@ def _carousel_and_like_params(data):
     lt = hex_to_rgb(data.get("点赞文字色", "#b8a8ca"))
     pt = hex_to_rgb(data.get("预览底色上", "#fefae8"))
     pb = hex_to_rgb(data.get("预览底色下", "#ecfafe"))
-    return dict(tc=tc, wc=wc, bc=bc, bbc=bbc, ec=ec, et=et, es=es,
+    return dict(tc=tc, wc=wc, bc=bc, bbc=bbc, cbc=cbc, ec=ec, et=et, es=es,
                 tag_c=tag_c, tag_bg_c=tag_bg_c, btc=btc,
                 ll=ll, lr=lr, lt=lt, pt=pt, pb=pb, src=src, ud=ud,
                 pvc=(int(data.get("chang偏移X", 0)), int(data.get("chang偏移Y", 0)),
@@ -483,7 +490,7 @@ def generate_gif():
         static = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
                                              p['et'], p['es'], p['src'], p['ud'],
                                              p['tag_c'], p['tag_bg_c'], p['btc'],
-                                             p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
+                                             p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'], p['cbc'])
         home = pipeline.compose_home_gif(static, p['ud'], preview_w=360)
         like = pipeline.compose_like_gif(static, p['ll'], p['lr'], p['lt'], p['src'], p['ud'], preview_w=360)
         result = {}
@@ -504,7 +511,7 @@ def export_gif():
         static = pipeline._generate_carousel(p['tc'], p['wc'], p['bc'], p['bbc'], p['ec'],
                                              p['et'], p['es'], p['src'], p['ud'],
                                              p['tag_c'], p['tag_bg_c'], p['btc'],
-                                             p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'])
+                                             p['ll'], p['lr'], p['lt'], p['pt'], p['pb'], p['pvc'], p['pvf'], p['cbc'])
         home = pipeline.compose_home_gif(static, p['ud'])
         like = pipeline.compose_like_gif(static, p['ll'], p['lr'], p['lt'], p['src'], p['ud'])
         out_dir = os.path.join(pipeline.OUTPUT_DIR, '动效物料')
@@ -536,7 +543,7 @@ def export_gif():
 @app.route("/upload_carousel", methods=["POST"])
 def upload_carousel():
     """上传轮播图素材"""
-    ALLOWED = {"头像挂件.png", "方图.png", "star_001_mobile_new.png", "gua#ff5582.png", "主页皮肤.png", "聊天头像.png", "气泡框.gif", "皮肤封面.mp4", "点赞.gif", "预览页gif.png"}
+    ALLOWED = {"头像挂件.png", "方图.png", "star_001_mobile_new.png", "gua#ff5582.png", "主页皮肤.png", "聊天头像.png", "气泡框.gif", "皮肤封面.mp4", "点赞.gif", "预览页gif.png", "轮播预览图.png"}
     fname = request.form.get("name")
     if fname not in ALLOWED:
         return jsonify({"ok": False, "error": f"name 必须为 {ALLOWED}"}), 400
