@@ -39,11 +39,31 @@ echo "=== 获取 ffmpeg (mac 静态二进制，gif 动效用) ==="
 FFMPEG_URL="https://evermeet.cx/ffmpeg/ffmpeg-7.1.zip"
 FFPROBE_URL="https://evermeet.cx/ffmpeg/ffprobe-7.1.zip"
 mkdir -p /tmp/ffmpeg-bundle
-if [ ! -f /tmp/ffmpeg-bundle/ffmpeg ]; then
-    curl -L -o /tmp/ffmpeg.zip "$FFMPEG_URL" && unzip -o /tmp/ffmpeg.zip -d /tmp/ffmpeg-bundle/
-fi
-if [ ! -f /tmp/ffmpeg-bundle/ffprobe ]; then
-    curl -L -o /tmp/ffprobe.zip "$FFPROBE_URL" && unzip -o /tmp/ffprobe.zip -d /tmp/ffmpeg-bundle/
+# 镜像（deolaha.ca）会限流：HTTP 200 但 body 是 "429 Too Many Connections"（24字节），
+# curl 视作成功、unzip 必炸 —— 所以下载后必须实跑 -version 验证，不行就重试
+fetch_bin() {
+    # $1=url $2=zip路径 $3=二进制名(ffmpeg/ffprobe)
+    local url="$1" zip="$2" name="$3" i
+    for i in 1 2 3 4 5 6; do
+        echo "  下载 $name (第 $i 次)..."
+        curl -L --connect-timeout 20 -o "$zip" "$url" || { sleep 15; continue; }
+        unzip -o "$zip" -d /tmp/ffmpeg-bundle/ || { sleep 15; continue; }
+        chmod +x "/tmp/ffmpeg-bundle/$name"
+        if "/tmp/ffmpeg-bundle/$name" -version >/dev/null 2>&1; then
+            return 0
+        fi
+        rm -f "/tmp/ffmpeg-bundle/$name"
+        sleep 15
+    done
+    return 1
+}
+fetch_bin "$FFMPEG_URL" /tmp/ffmpeg.zip ffmpeg || true
+fetch_bin "$FFPROBE_URL" /tmp/ffprobe.zip ffprobe || true
+# 兜底：镜像被限流时改用 Homebrew 的 ffmpeg/ffprobe（慢几分钟但稳）
+if [ ! -x /tmp/ffmpeg-bundle/ffmpeg ] || [ ! -x /tmp/ffmpeg-bundle/ffprobe ]; then
+    echo "  镜像下载失败，改用 Homebrew ffmpeg..."
+    brew install ffmpeg
+    cp "$(brew --prefix)/bin/ffmpeg" "$(brew --prefix)/bin/ffprobe" /tmp/ffmpeg-bundle/
 fi
 chmod +x /tmp/ffmpeg-bundle/ffmpeg /tmp/ffmpeg-bundle/ffprobe
 echo "  ffmpeg: $(/tmp/ffmpeg-bundle/ffmpeg -version 2>&1 | head -1)"
