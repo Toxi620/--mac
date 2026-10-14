@@ -11,6 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 清理旧成品（腾 artifact 存储配额，免费档只有 500MB）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh api "repos/${{ github.repository }}/actions/artifacts" \
+                     --paginate --jq '.artifacts[].id'); do
+            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$id" && \
+              echo "已删除旧 artifact $id"
+          done
+
       - name: 安装依赖
         run: pip3 install --break-system-packages pillow numpy flask pyinstaller
 
@@ -24,3 +34,4 @@ jobs:
         with:
           name: 配色工具-Mac
           path: 配色工具
+          retention-days: 3   # 拿到就够，防配额再满

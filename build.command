@@ -44,7 +44,7 @@ mkdir -p /tmp/ffmpeg-bundle
 fetch_bin() {
     # $1=url $2=zip路径 $3=二进制名(ffmpeg/ffprobe)
     local url="$1" zip="$2" name="$3" i
-    for i in 1 2 3 4 5 6; do
+    for i in 1 2 3; do
         echo "  下载 $name (第 $i 次)..."
         curl -L --connect-timeout 20 -o "$zip" "$url" || { sleep 15; continue; }
         unzip -o "$zip" -d /tmp/ffmpeg-bundle/ || { sleep 15; continue; }
