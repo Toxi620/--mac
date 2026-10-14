@@ -1428,28 +1428,44 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
     # 无字导出图保持原样：整颗气泡 420×174
     shop = nine_patch_scale(left_9, 420, 174, np_left)
     shop_with_text = shop
+
+    # 气泡宣传·安卓的气泡生成方式：文字决定气泡（文字这里用现成的染色文字图）
+    #   - 留白从点九黑线框往里量；文字宽 >65 算「横向拉伸」档（左留白 63→43）
+    #   - 宽 = 文字宽 + 左右留白，最长 776（含 1px 黑边）；高按文字行盒算，下限素材高
+    #   - 文字贴左上：字形左缘=edge_l，字形顶=edge_t+行盒空隙
+    def android_bubble(glyph_img):
+        # 留白 = 点九 pad（距边距离）+ 宣传留白常量，与 _generate_promo 安卓分支同口径
+        tw, gh = glyph_img.width, glyph_img.height
+        ins_l = PROMO_L_INSET_L_STRETCH if tw > PROMO_STRETCH_TEXT_W else PROMO_L_INSET_L
+        edge_l = np_left['pad_left'] + ins_l
+        edge_r = np_left['pad_right'] + PROMO_L_INSET_R          # 单行不换行档
+        edge_t = np_left['pad_top'] + PROMO_L_INSET_T
+        edge_b = np_left['pad_bottom'] + PROMO_L_INSET_B
+        avail = PROMO_MAX_BUBBLE_W - edge_l - edge_r
+        if tw > avail:                                   # 图没法折行：等比缩到放得下
+            k = avail / tw
+            glyph_img = glyph_img.resize((max(1, round(tw * k)),
+                                          max(1, round(gh * k))), Image.LANCZOS)
+            tw, gh = glyph_img.size
+        # 宣传安卓渲染文字时字形外还包着一圈「行盒」透明空隙（按 Noto 实测：
+        # 字形顶距行盒顶 ≈ 墨迹高×32/92，底 ≈ ×7/92）。文字图按墨迹高等比换算出
+        # 同样的空隙再贴，位置和周围留白才与宣传里渲染的文字一致
+        gap_top = round(gh * 32 / 92)
+        gap_bot = round(gh * 7 / 92)
+        h = max(176, math.ceil(edge_t + gap_top + gh + gap_bot + edge_b))
+        w = max(176, min(PROMO_MAX_BUBBLE_W, math.ceil(tw + edge_l + edge_r)))
+        bubble = nine_patch_scale(left_9, w, h, np_left)
+        bubble.alpha_composite(glyph_img, (edge_l, edge_t + gap_top))
+        return bubble
+
     if shop_text_img is not None:
-        # (预览) 版：气泡先按点九包住 6 字 → 再以文字中心为轴横着拉伸填满 420 宽
+        # (预览) 版：安卓方式——气泡包住 6 字文字图，在画布里居中
         glyph = shop_text_img.getbbox()
         if glyph:
-            gl, gt, gr, gb = glyph
-            gw, gh = gr - gl, gb - gt
-            pt = np_left['pad_top']
-            pb = np_left['pad_bottom']
-            bub_h = max(pt + gh + pb,
-                        np_left['fixed_top'] + np_left['fixed_bottom'])
-            bub = nine_patch_scale(left_9, 420, bub_h, np_left)   # 宽=满幅420
-            # 粉框(内容区)在气泡内的映射位置 → 文字中心对准粉框中心
-            bx0, by0, bx1, by1 = map_rect_np(np_left, PINK_LEFT_BOX, 420, bub_h)
-            ccx = (bx0 + bx1) / 2.0
-            ccy = (by0 + by1) / 2.0
-            glyph_img = shop_text_img.crop(glyph)
-            bub.paste(glyph_img,
-                      (round(ccx - gw / 2.0), round(ccy - gh / 2.0)), glyph_img)
-            # 用 alpha_composite 而不是 paste：贴到全透明画布上时，paste 会把
-            # 半透明像素按 alpha 与目标(全黑)加权，导致气泡边缘发黑
-            cw = Image.new('RGBA', (420, 174), (0, 0, 0, 0))
-            cw.alpha_composite(bub, (0, round((174 - bub_h) / 2.0)))   # 纵向居中
+            bub = android_bubble(shop_text_img.crop(glyph))
+            cw = Image.new('RGBA', (max(420, bub.width), 174), (0, 0, 0, 0))
+            cw.alpha_composite(bub, (round((cw.width - bub.width) / 2.0),
+                                     round((174 - bub.height) / 2.0)))
             shop_with_text = cw
 
     # Phase F: 引流位横幅
@@ -1468,22 +1484,15 @@ def _generate_core(text_color, tag_color, tag_bg_color, workdir,
         if bbox:
             # 裁剪出文字区域（去掉大图的空白边缘）
             wz_3_text = wz_3_replaced.crop(bbox)
-            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-            bubble_w, bubble_h = 253, 176
-
-            # 生成气泡
-            bubble = nine_patch_scale(left_9, bubble_w, bubble_h, np_left)
+            # 气泡用气泡宣传·安卓的生成方式（文字决定气泡，见 android_bubble 注释）
+            bubble = android_bubble(wz_3_text)
+            bubble_w, bubble_h = bubble.size
 
             # 红框（内容区）在气泡内的映射位置（按 04 参考粉框 PINK_LEFT_BOX）
             bx0, by0, bx1, by1 = map_rect_np(np_left, PINK_LEFT_BOX, bubble_w, bubble_h)
             ccx = (bx0 + bx1) / 2.0
             ccy = (by0 + by1) / 2.0
-
-            # wz_3 文字中心放在内容框中心
-            text_x = round(ccx - tw / 2.0)
-            text_y = round(ccy - th / 2.0)
-            bubble.paste(wz_3_text, (text_x, text_y), wz_3_text)
 
             # 渐变背景（上→下）
             import numpy as np
