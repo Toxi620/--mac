@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  actions: write   # 删旧 artifact 需要（默认 token 只读会 403）
+
 jobs:
   build:
     runs-on: macos-latest
@@ -16,10 +19,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for id in $(gh api "repos/${{ github.repository }}/actions/artifacts" \
-                     --paginate --jq '.artifacts[].id'); do
+                     --paginate --jq '.artifacts[].id' 2>/dev/null); do
+            [[ "$id" =~ ^[0-9]+$ ]] || continue
             gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$id" && \
-              echo "已删除旧 artifact $id"
+              echo "已删除旧 artifact $id" || true
           done
+          exit 0   # 清理只是腾地方，失败不挡打包
 
       - name: 安装依赖
         run: pip3 install --break-system-packages pillow numpy flask pyinstaller
