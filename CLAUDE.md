@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 仓库与发布
 
 - **git 仓库即本目录**（remote: `https://github.com/Toxi620/--mac.git`）；父目录 `d:\微博预览图\CLAUDE.md` 是内容相同的副本（不入版本库）
-- push 到 `main` 会**自动触发** GitHub Actions 打 mac 版（`.github/workflows/build.yml`，也支持手动 Run workflow）；改完代码直接推送即可
+- push 到 `main` 会**自动触发** GitHub Actions 打 mac 版（`.github/workflows/build.yml`，也支持手动 Run workflow）；改完代码直接推送即可。**仓库已转公开**（2026-09）——Actions 存储/时长不再吃私有库配额；⚠️ workflow 里声明 `permissions:` 会**整体覆盖默认权限**，`actions: write`（清 artifact 用）必须配 `contents: read`（否则 checkout 403）
 - Windows 分发物：`配色工具.exe`（本目录）→ `_win_dist/`（发布目录）→ 父目录 `配色工具_Windows.zip`；mac 分发物：GitHub Actions 的 Artifacts 或 `build.command` 本地产出
 - **⚠️ Mac 的 `build.command` 打包完会删除源码**（templates/ static/ fonts/ 及所有 png/py/docx，只留产物）——在 Mac 跑过它之后改代码前先 `git status` 确认源码还在，丢失可从 git 恢复
 
@@ -46,8 +46,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Phase B: `color_replace()` 替换 wz/lj/sk 叠加层
 3. Phase C: 点九拉伸 4 个气泡 → 合成亮色模式
 4. Phase D: 暗黑模式（独立暗色值 or 回退 ×0.9）
-5. Phase E: 商城展示图 420×174（气泡 + 文字叠加预览版）
-6. Phase F: 引流位横幅 366×204（渐变背景 + 气泡 + wz_3 文字）
+5. Phase E: 商城展示图 420×174（(预览) 版气泡走 `android_bubble()`＝**气泡宣传安卓同款几何**：点九 pad+留白常量、文字贴左上、行盒空隙 墨迹高×32/92（顶）·7/92（底）、宽=文字宽+留白 ≤776）
+6. Phase F: 引流位横幅 366×204（渐变背景 + `android_bubble` 气泡 + wz_3 文字，内容框中心锚定 (183,102)）
 
 **轮播管线 `_generate_carousel()`** — 5 张图 + 2 张预览画板 + 「轮播背景色.txt」画板：
 签名含 `edit_size`（可调字号），文字加载优先 `fonts/PingFang.ttf`，回退系统字体
@@ -236,7 +236,7 @@ python -m PyInstaller --onefile -w --distpath . --add-data "templates;templates"
 ```
 
 ### macOS 打包要点（GitHub Actions）
-- `build.command` 会先下载 mac 静态 ffmpeg/ffprobe（evermeet 7.1 到 `/tmp/ffmpeg-bundle`），再用 `--add-binary` 打进 bundle；构建机需联网
+- `build.command` 会先下载 mac 静态 ffmpeg/ffprobe（evermeet 7.1 到 `/tmp/ffmpeg-bundle`），再用 `--add-binary` 打进 bundle；构建机需联网。⚠️ evermeet 镜像会限流（HTTP 200 但 body 是 "429 Too Many Connections" 文本）——下载后**实跑 `-version` 验证**，重试 3 次仍失败自动 `brew install ffmpeg` 兜底
 - ⚠️ build.command 打包完会删除源码（templates/ static/ fonts/ 及 png/py/docx），Mac 本地跑过改代码前先 `git status`
 
 ## 注意事项
